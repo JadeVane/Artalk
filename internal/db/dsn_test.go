@@ -3,7 +3,7 @@ package db
 import (
 	"testing"
 
-	"github.com/ArtalkJS/Artalk/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/config"
 )
 
 func TestGetDsnByConf(t *testing.T) {
@@ -46,6 +46,22 @@ func TestGetDsnByConf(t *testing.T) {
 				SSL:      false,
 			},
 			expected: "user:password@tcp(localhost:3306)/dbname?charset=utf8&parseTime=True&loc=Local&tls=false",
+		},
+		{
+			name: "MySQL Cloud SQL TLS configuration",
+			conf: config.DBConf{
+				Type:           config.TypeMySql,
+				Host:           "db.example.internal",
+				User:           "user",
+				Password:       "password",
+				Name:           "dbname",
+				Port:           3306,
+				Charset:        "utf8",
+				ServerCaPath:   "server-ca.pem",
+				ClientCertPath: "client-cert.pem",
+				ClientKeyPath:  "client-key.pem",
+			},
+			expected: "user:password@tcp(db.example.internal:3306)/dbname?charset=utf8&parseTime=True&loc=Local&tls=cloudsql",
 		},
 		{
 			name: "SQL Server configuration",

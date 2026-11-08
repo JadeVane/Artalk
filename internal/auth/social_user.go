@@ -1,6 +1,11 @@
 package auth
 
-import "github.com/markbates/goth"
+import (
+	"strings"
+
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/markbates/goth"
+)
 
 type SocialUser struct {
 	goth.User
@@ -8,7 +13,18 @@ type SocialUser struct {
 	Link      string
 }
 
-func GetSocialUser(u goth.User) SocialUser {
+func GetSocialUser(u goth.User, conf *config.AuthConf) (SocialUser, error) {
+	remoteUID := u.UserID
+	var err error
+	switch u.Provider {
+	case "gitea":
+		remoteUID, err = giteaRemoteUID(conf.Gitea.SiteURL, u.UserID)
+	case "okta":
+		remoteUID, err = oktaRemoteUID(conf.Okta.Issuer, u.UserID)
+	}
+	if err != nil {
+		return SocialUser{}, err
+	}
 	var link string
 	if u.Provider == "github" {
 		if l, ok := u.RawData["blog"].(string); ok && l != "" {
@@ -27,9 +43,15 @@ func GetSocialUser(u goth.User) SocialUser {
 		u.Email = u.UserID + "@" + u.Provider + ".com"
 	}
 
+	// Name patch
+	if u.Name == "" && u.Email != "" {
+		// try extract name from email
+		u.Name = strings.Split(u.Email, "@")[0]
+	}
+
 	return SocialUser{
 		User:      u,
-		RemoteUID: u.UserID,
+		RemoteUID: remoteUID,
 		Link:      link,
-	}
+	}, nil
 }

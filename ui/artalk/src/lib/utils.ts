@@ -4,8 +4,9 @@ export function createElement<E extends HTMLElement = HTMLElement>(htmlStr: stri
   return (div.firstElementChild || div) as E
 }
 
-export function getHeight(el: HTMLElement) {
-  return parseFloat(getComputedStyle(el, null).height.replace('px', ''))
+export function getHeight(el: HTMLElement): number {
+  const num = parseFloat(getComputedStyle(el, null).height.replace('px', ''))
+  return num || 0 // NaN -> 0
 }
 
 export function htmlEncode(str: string) {
@@ -67,7 +68,7 @@ export function dateFormat(date: Date) {
   return `${vYear}-${vMonth}-${vDay}`
 }
 
-export function timeAgo(date: Date, $t: Function = (n: string) => n) {
+export function timeAgo(date: Date, $t = (n: any) => n) {
   try {
     const oldTime = date.getTime()
     const currTime = new Date().getTime()
@@ -106,8 +107,8 @@ export function timeAgo(date: Date, $t: Function = (n: string) => n) {
   }
 }
 
-export function getGravatarURL(opts: { params: string; mirror: string; emailMD5: string }) {
-  return `${opts.mirror.replace(/\/$/, '')}/${opts.emailMD5}?${opts.params.replace(/^\?/, '')}`
+export function getGravatarURL(opts: { params: string; mirror: string; emailHash: string }) {
+  return `${opts.mirror.replace(/\/$/, '')}/${opts.emailHash}?${opts.params.replace(/^\?/, '')}`
 }
 
 export function sleep(ms: number) {
@@ -134,21 +135,27 @@ export function versionCompare(a: string, b: string) {
 /** 获取修正后的 UserAgent */
 export async function getCorrectUserAgent() {
   const uaRaw = navigator.userAgent
-  if (!(navigator as any).userAgentData || !(navigator as any).userAgentData.getHighEntropyValues) {
+  const uaData = (navigator as any).userAgentData
+  if (typeof uaData?.getHighEntropyValues !== 'function') {
     return uaRaw
   }
 
   // @link https://web.dev/migrate-to-ua-ch/
   // @link https://web.dev/user-agent-client-hints/
-  const uaData = (navigator as any).userAgentData
-  let uaGot: any = null
+  let uaGot: any
   try {
     uaGot = await uaData.getHighEntropyValues(['platformVersion'])
   } catch (err) {
     console.error(err)
     return uaRaw
   }
-  const majorPlatformVersion = Number(uaGot.platformVersion.split('.')[0])
+  // Privacy extensions may omit or redact high-entropy hints. UA correction is
+  // optional and must not prevent a comment from being submitted.
+  const platformVersion = uaGot?.platformVersion
+  if (typeof platformVersion !== 'string' || !/^\d+(\.\d+)*$/.test(platformVersion)) {
+    return uaRaw
+  }
+  const majorPlatformVersion = Number(platformVersion.split('.')[0])
 
   if (uaData.platform === 'Windows') {
     if (majorPlatformVersion >= 13) {
@@ -166,7 +173,7 @@ export async function getCorrectUserAgent() {
       // (Arm Chip) macOS 样本："Mozilla/5.0 (Macintosh; ARM Mac OS X 10_15_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.0.2 Safari/605.1.15"
       return uaRaw.replace(
         /(Mac OS X \d+_\d+_\d+|Mac OS X)/,
-        `Mac OS X ${uaGot.platformVersion.replace(/\./g, '_')}`,
+        `Mac OS X ${platformVersion.replace(/\./g, '_')}`,
       )
     }
   }

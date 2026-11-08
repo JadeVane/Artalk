@@ -3,9 +3,9 @@ package handler
 import (
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/core"
-	"github.com/ArtalkJS/Artalk/internal/utils"
-	"github.com/ArtalkJS/Artalk/server/common"
+	"github.com/artalkjs/artalk/v2/internal/core"
+	"github.com/artalkjs/artalk/v2/internal/utils"
+	"github.com/artalkjs/artalk/v2/server/common"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -19,7 +19,7 @@ type RequestAuthEmailRegister struct {
 
 // @Id           RegisterByEmail
 // @Summary      Register by email
-// @Description  Register by email and verify code (if user exists, will update user, like forget password. Need send email verify code first)
+// @Description  Register by email and verify code (if user exists, will update user, like forget or change password. Need send email verify code first)
 // @Tags         Auth
 // @Param        data  body  RequestAuthEmailRegister  true  "The data to register"
 // @Success      200  {object}  ResponseUserLogin

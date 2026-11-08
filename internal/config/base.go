@@ -1,17 +1,21 @@
 package config
 
+//go:generate go run ./meta/gen --format go --locale en --pkg config -o ./cache.go
+
 import (
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 	"strings"
 	"unicode"
 
-	"github.com/ArtalkJS/Artalk/internal/log"
-	"github.com/ArtalkJS/Artalk/internal/utils"
+	"github.com/adrg/xdg"
+	"github.com/artalkjs/artalk/v2/internal/config/env_provider"
+	"github.com/artalkjs/artalk/v2/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/utils"
 	"github.com/knadh/koanf"
 	"github.com/knadh/koanf/parsers/yaml"
-	"github.com/knadh/koanf/providers/env"
 	"github.com/knadh/koanf/providers/file"
 )
 
@@ -32,13 +36,7 @@ func NewFromFile(cfgFile string) (*Config, error) {
 
 	// load environment variables and merge into the loaded config
 	const envPrefix = "ATK_"
-	if err := kf.Load(env.Provider(envPrefix, ".", func(s string) string {
-		// FOO__BAR -> foo_bar to handle dash in config names
-		s = strings.ToLower(strings.TrimPrefix(s, envPrefix))
-		s = strings.ReplaceAll(s, "__", "-")
-		s = strings.ReplaceAll(s, "_", ".")
-		return strings.ReplaceAll(s, "-", "_")
-	}), nil); err != nil {
+	if err := kf.Load(env_provider.Provider(envPrefix, EnvPathMapCache), nil); err != nil {
 		return nil, fmt.Errorf("config environment variable parse error: %w", err)
 	}
 
@@ -246,11 +244,44 @@ func (conf *Config) historyPatch() {
 	}
 }
 
-// 尝试查找配置文件
+// Try to find the configuration file
+//
+// The order of the search is:
+//  1. Current directory (./artalk.yml)
+//  2. Current subdirectory (./data/artalk.yml)
+//  3. XDG_CONFIG_HOME (~/.config/artalk.yml)
+//  4. /etc/artalk.yml (for linux packing version)
 func RetrieveConfigFile() string {
-	for _, v := range CONF_DEFAULT_FILENAMES {
-		if utils.CheckFileExist(v) {
-			return v
+	lookupDirs := []string{"", "data", xdg.ConfigHome, "/etc"}
+	paths := []string{}
+	for _, dir := range lookupDirs {
+		for _, name := range CONF_DEFAULT_FILENAMES {
+			if dir == "" || dir == "data" {
+				paths = append(paths, path.Join(dir, name))
+			} else {
+				paths = append(paths, path.Join(dir, "artalk", name))
+			}
+		}
+	}
+	for _, path := range paths {
+		if utils.CheckFileExist(path) {
+			return path
+		}
+	}
+	return ""
+}
+
+// Try to find the data directory (work directory)
+//
+// The order of the search is:
+//  1. XDG_DATA_HOME (~/.local/share)
+//  2. /var/lib (for linux packing version)
+func RetrieveDataDir() string {
+	lookupDirs := []string{xdg.DataHome, "/var/lib"}
+	for _, dir := range lookupDirs {
+		dir = path.Join(dir, "artalk")
+		if utils.CheckDirExist(dir) {
+			return dir
 		}
 	}
 	return ""

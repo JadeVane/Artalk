@@ -1,39 +1,47 @@
-import type { ContextApi } from 'artalk'
 import { Show, onCleanup, createSignal } from 'solid-js'
 import { render } from 'solid-js/web'
+import { AuthContext } from './types'
+import { createLayer } from './lib/layer'
+import { UserProfileDialog } from './UserProfileDialog'
 
-const EditorUser = ({ ctx }: { ctx: ContextApi }) => {
+const EditorUser = ({ ctx }: { ctx: AuthContext }) => {
   const logoutHandler = () => {
     window.confirm(ctx.$t('logoutConfirm')) &&
-      ctx.get('user').update({
+      ctx.getUser().update({
         token: '',
-        nick: '',
+        name: '',
         email: '',
         link: '',
-        isAdmin: false,
+        is_admin: false,
       })
   }
 
-  const getUser = () => ({ ...ctx.get('user').getData() }) // Must clone the object to avoid reactivity problem
+  const getUser = () => ({ ...ctx.getUser().getData() }) // Must clone the object to avoid reactivity problem
 
   const [user, setUser] = createSignal(getUser())
 
   const userChangedHandler = (u: any) => {
     setUser(getUser())
   }
-  ctx.on('user-changed', userChangedHandler)
+  ctx.getEvents().on('user-changed', userChangedHandler)
 
   onCleanup(() => {
-    ctx.off('user-changed', userChangedHandler)
+    ctx.getEvents().off('user-changed', userChangedHandler)
   })
+
+  const openUserProfileDialog = () => {
+    createLayer(ctx).show((layer) => (
+      <UserProfileDialog ctx={ctx} onClose={() => layer.destroy()} />
+    ))
+  }
 
   return (
     <div class="atk-editor-user-wrap">
       <Show when={user().token}>
         <div class="atk-editor-user">
-          <div class="atk-user-profile-btn atk-user-btn">
+          <div class="atk-user-profile-btn atk-user-btn" onClick={openUserProfileDialog}>
             {/* <div class="atk-avatar" style={{ "background-image": `url('https://avatars.githubusercontent.com/u/76841221?s=200&v=4')` }}></div> */}
-            <div class="atk-name">{user().nick}</div>
+            <div class="atk-name">{user().name}</div>
           </div>
           <div class="atk-logout atk-user-btn" onClick={logoutHandler} aria-label="Logout">
             <svg
@@ -54,8 +62,8 @@ const EditorUser = ({ ctx }: { ctx: ContextApi }) => {
   )
 }
 
-export const RenderEditorUser = (ctx: ContextApi) => {
-  const editor = ctx.get('editor')
+export const RenderEditorUser = (ctx: AuthContext) => {
+  const editor = ctx.getEditor()
   const findEl = () => editor.getEl().querySelector('.atk-editor-user-wrap')
 
   if (!findEl()) {

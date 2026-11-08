@@ -20,6 +20,7 @@ type Config struct {
 	TrustedDomains []string               `koanf:"trusted_domains" json:"trusted_domains"` // 可信任的域名 (新)
 	SSL            SSLConf                `koanf:"ssl" json:"ssl"`                         // SSL
 	SiteDefault    string                 `koanf:"site_default" json:"site_default"`       // 默认站点名（当请求无指定 site_name 时使用）
+	SiteURL        string                 `koanf:"site_url" json:"site_url"`               // 默认站点 URL
 	AdminUsers     []AdminUserConf        `koanf:"admin_users" json:"admin_users"`         // 管理员账户
 	LoginTimeout   int                    `koanf:"login_timeout" json:"login_timeout"`     // 登录超时
 	Moderator      ModeratorConf          `koanf:"moderator" json:"moderator"`             // 评论审查
@@ -30,6 +31,8 @@ type Config struct {
 	AdminNotify    AdminNotifyConf        `koanf:"admin_notify" json:"admin_notify"`       // 其他通知方式
 	Auth           AuthConf               `koanf:"auth" json:"auth"`                       // Social Login
 	Frontend       map[string]interface{} `koanf:"frontend" json:"frontend"`
+
+	PageTitleAutoFetch bool `koanf:"page_title_auto_fetch" json:"page_title_auto_fetch"` // 自动抓取页面标题（默认关闭）
 
 	// deprecated options
 	// (only for unmarshal, please not reference)
@@ -72,6 +75,10 @@ type DBConf struct {
 	Charset     string `koanf:"charset" json:"charset"`
 	SSL         bool   `koanf:"ssl" json:"ssl"`
 	PrepareStmt *bool  `koanf:"prepare_stmt" json:"prepare_stmt"`
+
+	ServerCaPath   string `koanf:"server_ca_path" json:"server_ca_path"`     // /path/to/server-ca.pem
+	ClientCertPath string `koanf:"client_cert_path" json:"client_cert_path"` // /path/to/client-cert.pem
+	ClientKeyPath  string `koanf:"client_key_path" json:"client_key_path"`   // /path/to/client-key.pem
 }
 
 type CacheConf struct {
@@ -161,6 +168,7 @@ type CaptchaConf struct {
 	ReCaptcha     ReCaptchaConf `koanf:"recaptcha" json:"recaptcha"`
 	HCaptcha      HCaptchaConf  `koanf:"hcaptcha" json:"hcaptcha"`
 	Geetest       GeetestConf   `koanf:"geetest" json:"geetest"`
+	CapJS         CapJSConf     `koanf:"capjs" json:"capjs"`
 }
 
 type CaptchaType string
@@ -171,6 +179,7 @@ const (
 	TypeReCaptcha CaptchaType = "recaptcha"
 	TypeHCaptcha  CaptchaType = "hcaptcha"
 	TypeGeetest   CaptchaType = "geetest"
+	TypeCapJS     CaptchaType = "capjs"
 )
 
 type TurnstileConf struct {
@@ -192,6 +201,12 @@ type GeetestConf struct {
 	Enabled    bool   `koanf:"enabled" json:"-"` // @deprecated 已废弃 (请使用 captcha.captcha_type)
 	CaptchaID  string `koanf:"captcha_id" json:"captcha_id"`
 	CaptchaKey string `koanf:"captcha_key" json:"captcha_key"`
+}
+
+type CapJSConf struct {
+	KeyID       string `koanf:"key_id" json:"key_id"`
+	SecretKey   string `koanf:"secret_key" json:"secret_key"`
+	APIEndpoint string `koanf:"api_endpoint" json:"api_endpoint"`
 }
 
 type EmailConf struct {
@@ -382,6 +397,7 @@ type AuthConf struct {
 		Enabled      bool   `koanf:"enabled" json:"enabled"`
 		ClientID     string `koanf:"client_id" json:"client_id"`
 		ClientSecret string `koanf:"client_secret" json:"client_secret"`
+		SiteURL      string `koanf:"site_url" json:"site_url"`
 	} `koanf:"gitea" json:"gitea"`
 	Google struct {
 		Enabled      bool   `koanf:"enabled" json:"enabled"`
@@ -453,4 +469,24 @@ type AuthConf struct {
 		ClientSecret string `koanf:"client_secret" json:"client_secret"`
 		Domain       string `koanf:"domain" json:"domain"`
 	} `koanf:"auth0" json:"auth0"`
+	Okta struct {
+		Enabled      bool   `koanf:"enabled" json:"enabled"`
+		ClientID     string `koanf:"client_id" json:"client_id"`
+		ClientSecret string `koanf:"client_secret" json:"client_secret"`
+		Issuer       string `koanf:"issuer" json:"issuer"`
+	} `koanf:"okta" json:"okta"`
+
+	// Token exchange — accept an access token from an external OIDC IdP
+	// (verified via that IdP's /userinfo) and issue an Artalk JWT for the
+	// matching user. Lets a surrounding application that already runs OIDC
+	// (e.g. an Auth0 SPA) drive Artalk sign-in without showing Artalk's
+	// own popup login.
+	SSO AuthSSOConf `koanf:"sso" json:"sso"`
+}
+
+type AuthSSOConf struct {
+	Enabled bool `koanf:"enabled" json:"enabled"`
+	// Issuer is the OIDC issuer URL — e.g. "tenant.auth0.com" or
+	// "https://tenant.auth0.com". /userinfo is called against this host.
+	Issuer string `koanf:"issuer" json:"issuer"`
 }

@@ -1,18 +1,71 @@
 {
   "name": "@artalk/plugin-lightbox",
-  "version": "0.1.2",
+  "version": "0.2.5",
+  "minAppVersion": "2.9.1",
   "license": "MIT",
   "description": "The image lightbox plugin for artalk",
+  "homepage": "https://github.com/ArtalkJS/Artalk/tree/master/ui/plugin-lightbox",
+  "bugs": "https://github.com/ArtalkJS/Artalk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArtalkJS/Artalk.git",
+    "directory": "ui/plugin-lightbox"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "type": "module",
   "main": "./dist/artalk-plugin-lightbox.js",
-  "module": "./dist/artalk-plugin-lightbox.es.js",
+  "module": "./dist/artalk-plugin-lightbox.mjs",
+  "types": "./dist/artalk-plugin-lightbox.d.ts",
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "prepublish": "pnpm build",
-    "publish": "pnpm publish --access=public"
+    "test:attw": "pnpx @arethetypeswrong/cli@0.18.5 --pack ."
   },
-  "dependencies": {
-    "artalk": "workspace:^"
+  "devDependencies": {
+    "@artalk/plugin-kit": "workspace:^",
+    "artalk": "workspace:^",
+    "fancybox": "^3.0.1",
+    "lightbox2": "^2.12.0",
+    "lightgallery": "^2.9.0",
+    "photoswipe": "^5.4.4"
+  },
+  "peerDependencies": {
+    "artalk": "^2.9.1",
+    "fancybox": "^3.0.1",
+    "lightbox2": "^2.12.0",
+    "lightgallery": "^2.9.0",
+    "photoswipe": "^5.4.4"
+  },
+  "peerDependenciesMeta": {
+    "lightgallery": {
+      "optional": true
+    },
+    "lightbox2": {
+      "optional": true
+    },
+    "photoswipe": {
+      "optional": true
+    },
+    "fancybox": {
+      "optional": true
+    }
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/artalk-plugin-lightbox.d.ts",
+        "default": "./dist/artalk-plugin-lightbox.mjs"
+      },
+      "require": {
+        "types": "./dist/artalk-plugin-lightbox.d.cts",
+        "default": "./dist/artalk-plugin-lightbox.cjs"
+      }
+    }
   }
 }

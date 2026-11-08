@@ -2,12 +2,13 @@ package common
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/config"
-	"github.com/ArtalkJS/Artalk/internal/core"
-	"github.com/ArtalkJS/Artalk/internal/utils"
-	"github.com/ArtalkJS/Artalk/server/middleware"
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/core"
+	"github.com/artalkjs/artalk/v2/internal/utils"
+	"github.com/artalkjs/artalk/v2/server/middleware"
 	"github.com/gofiber/fiber/v2"
 	"github.com/samber/lo"
 )
@@ -22,7 +23,7 @@ func GetApiVersionDataMap() ApiVersionData {
 	return ApiVersionData{
 		App:        "artalk",
 		Version:    strings.TrimPrefix(config.Version, "v"),
-		CommitHash: config.CommitHash,
+		CommitHash: config.CommitHash(),
 	}
 }
 
@@ -58,6 +59,10 @@ func GetApiPublicConfDataMap(app *core.App, c *fiber.Ctx) ConfData {
 
 	if app.Conf().Auth.Enabled {
 		pluginURLs = append(pluginURLs, "dist/plugins/artalk-plugin-auth.js")
+	}
+
+	if !slices.Contains([]string{"en", "zh-CN", ""}, app.Conf().Locale) {
+		pluginURLs = append(pluginURLs, fmt.Sprintf("dist/i18n/%s.js", app.Conf().Locale))
 	}
 
 	frontendConf["pluginURLs"] = handlePluginURLs(app,

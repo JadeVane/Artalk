@@ -3,8 +3,8 @@ package db
 import (
 	"fmt"
 
-	"github.com/ArtalkJS/Artalk/internal/config"
-	"github.com/ArtalkJS/Artalk/internal/db/logger"
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/db/logger"
 	"gorm.io/gorm"
 	"gorm.io/gorm/schema"
 )
@@ -36,7 +36,7 @@ func NewDB(conf config.DBConf) (*gorm.DB, error) {
 	case config.TypeSQLite:
 		return OpenSQLite(dsn, gormConfig)
 	case config.TypeMySql:
-		return OpenMySql(dsn, gormConfig)
+		return OpenMySql(dsn, gormConfig, &conf)
 	case config.TypePostgreSQL:
 		return OpenPostgreSQL(dsn, gormConfig)
 	case config.TypeMSSQL:
@@ -47,7 +47,12 @@ func NewDB(conf config.DBConf) (*gorm.DB, error) {
 }
 
 func NewTestDB() (*gorm.DB, error) {
-	return OpenSQLite("file::memory:?cache=shared", &gorm.Config{DisableForeignKeyConstraintWhenMigrating: true})
+	return OpenSQLite("file::memory:?cache=shared", &gorm.Config{
+		DisableForeignKeyConstraintWhenMigrating: true,
+		NamingStrategy: schema.NamingStrategy{
+			TablePrefix: "atk_",
+		},
+	})
 }
 
 func CloseDB(db *gorm.DB) error {

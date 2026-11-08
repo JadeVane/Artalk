@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"github.com/ArtalkJS/Artalk/internal/core"
-	"github.com/ArtalkJS/Artalk/internal/entity"
-	"github.com/ArtalkJS/Artalk/internal/i18n"
-	"github.com/ArtalkJS/Artalk/server/common"
+	"github.com/artalkjs/artalk/v2/internal/core"
+	"github.com/artalkjs/artalk/v2/internal/entity"
+	"github.com/artalkjs/artalk/v2/internal/i18n"
+	"github.com/artalkjs/artalk/v2/server/common"
 	"github.com/gofiber/fiber/v2"
 )
 
@@ -33,7 +33,7 @@ func PageFetch(app *core.App, router fiber.Router) {
 			return common.RespError(c, 404, i18n.T("{{name}} not found", Map{"name": i18n.T("Page")}))
 		}
 
-		if err := app.Dao().FetchPageFromURL(&page); err != nil {
+		if err := app.Dao().FetchPageFromURL(&page, app.Conf().TrustedDomains...); err != nil {
 			return common.RespError(c, 500, i18n.T("Page fetch failed")+": "+err.Error())
 		}
 

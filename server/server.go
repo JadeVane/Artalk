@@ -1,19 +1,21 @@
 package server
 
 import (
-	"fmt"
 	"io"
+	"net"
 	"net/http"
+	"strconv"
+	"strings"
 
-	_ "github.com/ArtalkJS/Artalk/docs/swagger"
-	"github.com/ArtalkJS/Artalk/internal/config"
-	"github.com/ArtalkJS/Artalk/internal/core"
-	"github.com/ArtalkJS/Artalk/internal/log"
-	"github.com/ArtalkJS/Artalk/internal/pkged"
-	"github.com/ArtalkJS/Artalk/server/common"
-	h "github.com/ArtalkJS/Artalk/server/handler"
-	"github.com/ArtalkJS/Artalk/server/middleware"
-	"github.com/ArtalkJS/Artalk/server/middleware/limiter"
+	_ "github.com/artalkjs/artalk/v2/docs/swagger"
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/core"
+	"github.com/artalkjs/artalk/v2/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/pkged"
+	"github.com/artalkjs/artalk/v2/server/common"
+	h "github.com/artalkjs/artalk/v2/server/handler"
+	"github.com/artalkjs/artalk/v2/server/middleware"
+	"github.com/artalkjs/artalk/v2/server/middleware/limiter"
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/filesystem"
 	fiber_logger "github.com/gofiber/fiber/v2/middleware/logger"
@@ -53,6 +55,7 @@ func Serve(app *core.App) (*fiber.App, error) {
 		BodyLimit:          app.Conf().HTTP.BodyLimit * 1024 * 1024, // MB
 		StreamRequestBody:  true,
 		EnableIPValidation: true,
+		Network:            fiber.NetworkTCP,
 	})
 
 	reqID(fb)
@@ -71,7 +74,8 @@ func Serve(app *core.App) (*fiber.App, error) {
 		h.CommentCreate(app, api)
 		h.CommentList(app, api)
 		h.CommentGet(app, api)
-		h.Vote(app, api)
+		h.VoteGet(app, api)
+		h.VoteCreate(app, api)
 		h.PagePV(app, api)
 		h.Stat(app, api)
 		h.NotifyList(app, api)
@@ -94,9 +98,11 @@ func Serve(app *core.App) (*fiber.App, error) {
 		h.AuthMergeCheck(app, api)
 
 		h.AuthSocialLogin(app, api)
+		h.AuthSSOExchange(app, api)
 
 		// user
 		h.UserInfo(app, api)
+		h.UserInfoUpdate(app, api)
 		h.UserLogin(app, api)
 		h.UserStatus(app, api)
 
@@ -115,7 +121,12 @@ func Serve(app *core.App) (*fiber.App, error) {
 	})
 
 	// listen serves HTTP requests
-	listenAddr := fmt.Sprintf("%s:%d", app.Conf().Host, app.Conf().Port)
+	host := app.Conf().Host
+	// Accept existing bracketed IPv6 hosts as well as bare addresses.
+	if strings.HasPrefix(host, "[") && strings.HasSuffix(host, "]") {
+		host = host[1 : len(host)-1]
+	}
+	listenAddr := net.JoinHostPort(host, strconv.Itoa(app.Conf().Port))
 	if app.Conf().SSL.Enabled {
 		return fb, fb.ListenTLS(listenAddr, app.Conf().SSL.CertPath, app.Conf().SSL.KeyPath)
 	} else {

@@ -1,5 +1,5 @@
-import PaginationComponent from '@/components/pagination'
 import type { Paginator, IPgHolderOpt } from '.'
+import PaginationComponent from '@/components/pagination'
 
 /**
  * 翻页形式的分页
@@ -11,12 +11,12 @@ export default class UpDownPaginator implements Paginator {
     this.instance = new PaginationComponent(opt.total, {
       pageSize: opt.pageSize,
       onChange: async (o) => {
-        opt.ctx.editorResetState() // 防止评论框被吞
+        opt.resetEditorState()
 
-        opt.ctx.fetch({
+        opt.getData().fetchComments({
           offset: o,
           onSuccess: () => {
-            opt.ctx.listGotoFirst()
+            opt.onListGotoFirst?.()
           },
         })
       },

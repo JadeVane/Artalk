@@ -3,11 +3,12 @@ package dao_test
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"github.com/ArtalkJS/Artalk/internal/dao"
-	"github.com/ArtalkJS/Artalk/test"
+	"github.com/artalkjs/artalk/v2/internal/dao"
+	"github.com/artalkjs/artalk/v2/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -17,10 +18,12 @@ func TestFindCreateSite(t *testing.T) {
 
 	t.Run("Create New Site", func(t *testing.T) {
 		siteName := "TestCreateNewSite"
+		siteURL := "https://artalk.example.com"
 
-		result := app.Dao().FindCreateSite(siteName)
+		result := app.Dao().FindCreateSite(siteName, siteURL)
 		assert.False(t, result.IsEmpty(), "直接获取创建后的站点数据有问题")
 		assert.Equal(t, siteName, result.Name)
+		assert.Equal(t, siteURL, result.Urls)
 
 		findSite := app.Dao().FindSite(siteName)
 		assert.False(t, findSite.IsEmpty(), "找不到创建后的站点")
@@ -28,9 +31,9 @@ func TestFindCreateSite(t *testing.T) {
 	})
 
 	t.Run("Find Existed Site", func(t *testing.T) {
-		result := app.Dao().FindCreateSite("Site A")
+		result := app.Dao().FindCreateSite("Site A", "https://qwqaq.com")
 		assert.False(t, result.IsEmpty())
-		assert.Equal(t, "http://localhost:8080/,https://qwqaq.com", result.Urls)
+		assert.Equal(t, "http://localhost:8080/,https://qwqaq.com", result.Urls) // not modified
 	})
 }
 
@@ -65,7 +68,7 @@ func TestFindCreatePage(t *testing.T) {
 
 	t.Run("Concurrent FindCreatePage", func(t *testing.T) {
 		var (
-			pageKey   = "/" + time.Now().String() + ".html"
+			pageKey   = "/TEST_CONCURRENT_PAGE_KEY.html"
 			pageTitle = "New Page Title " + time.Now().String()
 			siteName  = "Site A"
 		)
@@ -73,22 +76,28 @@ func TestFindCreatePage(t *testing.T) {
 		// simulate concurrent requests
 		var wg sync.WaitGroup
 
+		ready := make(chan struct{})
+
 		var idMap sync.Map
 		n := 10000
 		for i := 0; i < n; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
+				<-ready // wait for all goroutines to start at the same time
 				result := app.Dao().FindCreatePage(pageKey, pageTitle, siteName)
 				idMap.Store(result.ID, true)
 			}()
 		}
 
+		close(ready)
+
 		wg.Wait()
 
 		// count the number of different pages
 		count := 0
-		idMap.Range(func(_, _ interface{}) bool {
+		idMap.Range(func(k, v interface{}) bool {
+			t.Log("Page ID", k)
 			count++
 			return true
 		})
@@ -166,49 +175,50 @@ func TestFindCreateAction(t *testing.T) {
 	defer app.Cleanup()
 
 	var calledTimes int32
-	var mutex sync.Mutex
 
-	increaseCalledTimes := func() {
-		mutex.Lock()
-		defer mutex.Unlock()
-		calledTimes++
-	}
+	ready := make(chan struct{})
 
 	t.Run("Concurrent FindCreateAction", func(t *testing.T) {
 		var wg sync.WaitGroup
 
-		var instance mockEntity
+		var atomicResult atomic.Value // Assume that Find and Create actions is Thread-safe
+		atomicResult.Store(mockEntity{})
+
 		findCreateFunc := func() (mockEntity, error) {
-			randKey := fmt.Sprintf("rand_key_%d", time.Now().UnixNano())
-			return dao.FindCreateAction(randKey, func() (mockEntity, error) {
+			return dao.FindCreateAction("key", func() (mockEntity, error) {
 				// findAction
-				time.Sleep(200 * time.Millisecond) // mock time consuming
-				return instance, nil
+				time.Sleep(10 * time.Millisecond)     // Simulate a slow find action
+				r := atomicResult.Load().(mockEntity) // Thread-safe read result
+				return r, nil
 			}, func() (mockEntity, error) {
 				// createAction
-				instance = mockEntity{
-					ID:   1,
-					Name: "mockEntity",
-				}
-				time.Sleep(500 * time.Millisecond) // mock time consuming
-				increaseCalledTimes()
-				return instance, nil
+				atomic.AddInt32(&calledTimes, 1)  // Record the number of times createAction is called
+				time.Sleep(10 * time.Millisecond) // Simulate a slow create action
+				r := mockEntity{ID: 1, Name: "create"}
+				atomicResult.Store(r) // Thread-safe update result
+				return r, nil
 			})
 		}
 
-		n := 10000
+		const n = 1000
 		for i := 0; i < n; i++ {
 			wg.Add(1)
 			go func() {
 				defer wg.Done()
-				result, err := findCreateFunc()
+				<-ready // wait for all goroutines to start at the same time
+				r, err := findCreateFunc()
 				assert.NoError(t, err)
-				assert.False(t, result.IsEmpty(), "FindCreateAction should always return a non-empty entity")
+				assert.False(t, r.IsEmpty(), "FindCreateAction should always return a non-empty entity")
 			}()
 		}
 
+		// start all goroutines at the same time
+		close(ready)
+
 		wg.Wait()
 
-		assert.Equal(t, int32(1), calledTimes, "Concurrent FindCreateAction should only call createAction once")
+		if got := atomic.LoadInt32(&calledTimes); got != 1 {
+			t.Fatalf("FindCreateAction should only call createAction once, but got %d times", got)
+		}
 	})
 }

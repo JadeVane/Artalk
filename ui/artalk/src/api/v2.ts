@@ -1,5 +1,6 @@
 /* eslint-disable */
 /* tslint:disable */
+// @ts-nocheck
 /*
  * ---------------------------------------------------------------
  * ## THIS FILE WAS GENERATED VIA SWAGGER-TYPESCRIPT-API        ##
@@ -29,9 +30,9 @@ export interface CommonConfData {
 
 export interface CommonJSONResult {
   /** Data */
-  data: any
+  data?: any
   /** Message */
-  msg: string
+  msg?: string
 }
 
 export type CommonMap = Record<string, any>
@@ -44,7 +45,7 @@ export interface EntityCookedComment {
   date: string
   email_encrypted: string
   id: number
-  ip_region: string
+  ip_region?: string
   is_allow_reply: boolean
   is_collapsed: boolean
   is_pending: boolean
@@ -74,6 +75,7 @@ export interface EntityCookedNotify {
 
 export interface EntityCookedPage {
   admin_only: boolean
+  date: string
   id: number
   key: string
   pv: number
@@ -119,6 +121,11 @@ export interface EntityCookedUserForAdmin {
 }
 
 export type HandlerMap = Record<string, any>
+
+export interface HandlerParamsAuthSSOExchange {
+  /** External IdP access token (e.g. an Auth0 access token) */
+  token: string
+}
 
 export interface HandlerParamsCaptchaVerify {
   /** The captcha value to check */
@@ -234,7 +241,7 @@ export interface HandlerParamsSiteUpdate {
 }
 
 export interface HandlerParamsTransferImport {
-  /** Automatically answer yes for all questions. */
+  /** Automatically answer yes for all questions */
   assumeyes?: boolean
   /** The JSON data */
   json_data?: string
@@ -244,6 +251,8 @@ export interface HandlerParamsTransferImport {
   target_site_name?: string
   /** The target site url */
   target_site_url?: string
+  /** Keep domain */
+  url_keep_domain?: boolean
   /** Enable URL resolver */
   url_resolver?: boolean
 }
@@ -295,7 +304,7 @@ export interface HandlerParamsUserUpdate {
   receive_email: boolean
 }
 
-export interface HandlerParamsVote {
+export interface HandlerParamsVoteCreate {
   /** The user email */
   email?: string
   /** The username */
@@ -322,6 +331,13 @@ export interface HandlerRequestAuthEmailRegister {
 
 export interface HandlerRequestAuthEmailSend {
   email: string
+}
+
+export interface HandlerRequestUserInfoUpdate {
+  code?: string
+  email: string
+  link?: string
+  name: string
 }
 
 export interface HandlerResponseAdminUserList {
@@ -359,7 +375,7 @@ export interface HandlerResponseCommentCreate {
   date: string
   email_encrypted: string
   id: number
-  ip_region: string
+  ip_region?: string
   is_allow_reply: boolean
   is_collapsed: boolean
   is_pending: boolean
@@ -388,7 +404,7 @@ export interface HandlerResponseCommentGet {
 export interface HandlerResponseCommentList {
   comments: EntityCookedComment[]
   count: number
-  page: EntityCookedPage
+  page?: EntityCookedPage
   roots_count: number
 }
 
@@ -400,7 +416,7 @@ export interface HandlerResponseCommentUpdate {
   date: string
   email_encrypted: string
   id: number
-  ip_region: string
+  ip_region?: string
   is_allow_reply: boolean
   is_collapsed: boolean
   is_pending: boolean
@@ -421,6 +437,7 @@ export interface HandlerResponseCommentUpdate {
 
 export interface HandlerResponseConfAuthProviders {
   anonymous: boolean
+  callback_origin?: string
   providers: AuthAuthProviderInfo[]
 }
 
@@ -438,6 +455,7 @@ export interface HandlerResponseNotifyList {
 
 export interface HandlerResponsePageFetch {
   admin_only: boolean
+  date: string
   id: number
   key: string
   pv: number
@@ -470,6 +488,7 @@ export interface HandlerResponsePagePV {
 
 export interface HandlerResponsePageUpdate {
   admin_only: boolean
+  date: string
   id: number
   key: string
   pv: number
@@ -481,6 +500,7 @@ export interface HandlerResponsePageUpdate {
 }
 
 export interface HandlerResponseSettingGet {
+  envs: string[]
   yaml: string
 }
 
@@ -547,6 +567,10 @@ export interface HandlerResponseUserInfo {
   user: EntityCookedUser
 }
 
+export interface HandlerResponseUserInfoUpdate {
+  user: EntityCookedUser
+}
+
 export interface HandlerResponseUserLogin {
   token: string
   user: EntityCookedUser
@@ -574,6 +598,8 @@ export interface HandlerResponseUserUpdate {
 
 export interface HandlerResponseVote {
   down: number
+  is_down: boolean
+  is_up: boolean
   up: number
 }
 
@@ -619,6 +645,7 @@ type CancelToken = Symbol | string | number
 
 export enum ContentType {
   Json = 'application/json',
+  JsonApi = 'application/vnd.api+json',
   FormData = 'multipart/form-data',
   UrlEncoded = 'application/x-www-form-urlencoded',
   Text = 'text/plain',
@@ -682,21 +709,30 @@ export class HttpClient<SecurityDataType = unknown> {
       input !== null && (typeof input === 'object' || typeof input === 'string')
         ? JSON.stringify(input)
         : input,
+    [ContentType.JsonApi]: (input: any) =>
+      input !== null && (typeof input === 'object' || typeof input === 'string')
+        ? JSON.stringify(input)
+        : input,
     [ContentType.Text]: (input: any) =>
       input !== null && typeof input !== 'string' ? JSON.stringify(input) : input,
-    [ContentType.FormData]: (input: any) =>
-      Object.keys(input || {}).reduce((formData, key) => {
+    [ContentType.FormData]: (input: any) => {
+      if (input instanceof FormData) {
+        return input
+      }
+
+      return Object.keys(input || {}).reduce((formData, key) => {
         const property = input[key]
         formData.append(
           key,
           property instanceof Blob
             ? property
             : typeof property === 'object' && property !== null
-            ? JSON.stringify(property)
-            : `${property}`,
+              ? JSON.stringify(property)
+              : `${property}`,
         )
         return formData
-      }, new FormData()),
+      }, new FormData())
+    },
     [ContentType.UrlEncoded]: (input: any) => this.toQueryString(input),
   }
 
@@ -773,9 +809,10 @@ export class HttpClient<SecurityDataType = unknown> {
       r.data = null as unknown as T
       r.error = null as unknown as E
 
+      const responseToParse = responseFormat ? response.clone() : response
       const data = !responseFormat
         ? r
-        : await response[responseFormat]()
+        : await responseToParse[responseFormat]()
             .then((data) => {
               if (r.ok) {
                 r.data = data
@@ -843,7 +880,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       }),
 
     /**
- * @description Register by email and verify code (if user exists, will update user, like forget password. Need send email verify code first)
+ * @description Register by email and verify code (if user exists, will update user, like forget or change password. Need send email verify code first)
  *
  * @tags Auth
  * @name RegisterByEmail
@@ -1396,12 +1433,13 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
   }
   notifies = {
     /**
- * @description Get a list of notifies for user
+ * @description Get unread notifications owned by the authenticated user or anonymous comment credential
  *
  * @tags Notify
  * @name GetNotifies
  * @summary Get Notifies
  * @request GET:/notifies
+ * @secure
  * @response `200` `HandlerResponseNotifyList` OK
  * @response `400` `(HandlerMap & {
     msg?: string,
@@ -1430,23 +1468,29 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         path: `/notifies`,
         method: 'GET',
         query: query,
+        secure: true,
         type: ContentType.Json,
         format: 'json',
         ...params,
       }),
 
     /**
- * @description Mark all notifies as read for user
+ * @description Mark owned notifications as read using a login or anonymous comment credential
  *
  * @tags Notify
  * @name MarkAllNotifyRead
  * @summary Mark All Notifies as Read
  * @request POST:/notifies/read
+ * @secure
  * @response `200` `HandlerMap` OK
  * @response `400` `(HandlerMap & {
     msg?: string,
 
 })` Bad Request
+ * @response `401` `(HandlerMap & {
+    msg?: string,
+
+})` Unauthorized
  * @response `500` `(HandlerMap & {
     msg?: string,
 
@@ -1462,6 +1506,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         path: `/notifies/read`,
         method: 'POST',
         body: options,
+        secure: true,
         type: ContentType.Json,
         format: 'json',
         ...params,
@@ -1518,10 +1563,14 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
  */
     getPages: (
       query?: {
+        /** Only include pages with comments (including pending comments) */
+        has_comments?: boolean
         /** The limit for pagination */
         limit?: number
         /** The offset for pagination */
         offset?: number
+        /** Search keywords */
+        search?: string
         /** The site name of your content scope */
         site_name?: string
       },
@@ -1959,6 +2008,55 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         ...params,
       }),
   }
+  sso = {
+    /**
+ * @description Validates a third-party OIDC access token by calling the issuer's /userinfo endpoint, requires a verified email claim, then mints an Artalk session JWT. Use when the surrounding application already runs OIDC and you want Artalk comments to inherit that session without showing Artalk's own login UI.
+ *
+ * @tags Auth
+ * @name AuthSsoExchange
+ * @summary Exchange an external IdP access token for an Artalk JWT
+ * @request POST:/sso/exchange
+ * @response `200` `HandlerResponseUserLogin` OK
+ * @response `400` `(HandlerMap & {
+    msg?: string,
+
+})` Bad Request
+ * @response `401` `(HandlerMap & {
+    msg?: string,
+
+})` Unauthorized
+ * @response `404` `(HandlerMap & {
+    msg?: string,
+
+})` Not Found
+ * @response `500` `(HandlerMap & {
+    msg?: string,
+
+})` Internal Server Error
+ * @response `502` `(HandlerMap & {
+    msg?: string,
+
+})` Bad Gateway
+ * @response `503` `(HandlerMap & {
+    msg?: string,
+
+})` Service Unavailable
+ */
+    authSsoExchange: (body: HandlerParamsAuthSSOExchange, params: RequestParams = {}) =>
+      this.request<
+        HandlerResponseUserLogin,
+        HandlerMap & {
+          msg?: string
+        }
+      >({
+        path: `/sso/exchange`,
+        method: 'POST',
+        body: body,
+        type: ContentType.Json,
+        format: 'json',
+        ...params,
+      }),
+  }
   stats = {
     /**
  * @description Get the statistics of various data analysis
@@ -2201,6 +2299,40 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       }),
 
     /**
+ * @description Update user profile when user is logged in
+ *
+ * @tags Auth
+ * @name UpdateProfile
+ * @summary Update user profile
+ * @request POST:/user
+ * @secure
+ * @response `200` `HandlerResponseUserInfoUpdate` OK
+ * @response `400` `(HandlerMap & {
+    msg?: string,
+
+})` Bad Request
+ * @response `500` `(HandlerMap & {
+    msg?: string,
+
+})` Internal Server Error
+ */
+    updateProfile: (data: HandlerRequestUserInfoUpdate, params: RequestParams = {}) =>
+      this.request<
+        HandlerResponseUserInfoUpdate,
+        HandlerMap & {
+          msg?: string
+        }
+      >({
+        path: `/user`,
+        method: 'POST',
+        body: data,
+        secure: true,
+        type: ContentType.Json,
+        format: 'json',
+        ...params,
+      }),
+
+    /**
  * @description Login user by name or email
  *
  * @tags Auth
@@ -2412,6 +2544,8 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
         limit?: number
         /** The offset for pagination */
         offset?: number
+        /** Search keywords */
+        search?: string
       },
       params: RequestParams = {},
     ) =>
@@ -2478,12 +2612,51 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
       }),
 
     /**
- * @description Vote for a specific comment or page
+ * @description Get vote status for a specific comment or page
  *
  * @tags Vote
- * @name Vote
- * @summary Vote
- * @request POST:/votes/{type}/{target_id}
+ * @name GetVote
+ * @summary Get Vote Status
+ * @request GET:/votes/{target_name}/{target_id}
+ * @response `200` `HandlerResponseVote` OK
+ * @response `400` `(HandlerMap & {
+    msg?: string,
+
+})` Bad Request
+ * @response `403` `(HandlerMap & {
+    msg?: string,
+
+})` Forbidden
+ * @response `404` `(HandlerMap & {
+    msg?: string,
+
+})` Not Found
+ * @response `500` `(HandlerMap & {
+    msg?: string,
+
+})` Internal Server Error
+ */
+    getVote: (targetName: 'comment' | 'page', targetId: number, params: RequestParams = {}) =>
+      this.request<
+        HandlerResponseVote,
+        HandlerMap & {
+          msg?: string
+        }
+      >({
+        path: `/votes/${targetName}/${targetId}`,
+        method: 'GET',
+        type: ContentType.Json,
+        format: 'json',
+        ...params,
+      }),
+
+    /**
+ * @description Create a new vote for a specific comment or page
+ *
+ * @tags Vote
+ * @name CreateVote
+ * @summary Create Vote
+ * @request POST:/votes/{target_name}/{target_id}/{choice}
  * @response `200` `HandlerResponseVote` OK
  * @response `403` `(HandlerMap & {
     msg?: string,
@@ -2498,10 +2671,11 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
 
 })` Internal Server Error
  */
-    vote: (
-      type: 'comment_up' | 'comment_down' | 'page_up' | 'page_down',
+    createVote: (
+      targetName: 'comment' | 'page',
       targetId: number,
-      vote: HandlerParamsVote,
+      choice: 'up' | 'down',
+      vote: HandlerParamsVoteCreate,
       params: RequestParams = {},
     ) =>
       this.request<
@@ -2510,7 +2684,7 @@ export class Api<SecurityDataType extends unknown> extends HttpClient<SecurityDa
           msg?: string
         }
       >({
-        path: `/votes/${type}/${targetId}`,
+        path: `/votes/${targetName}/${targetId}/${choice}`,
         method: 'POST',
         body: vote,
         type: ContentType.Json,

@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/entity"
-	"github.com/ArtalkJS/Artalk/internal/log"
-	"github.com/ArtalkJS/Artalk/internal/utils"
+	"github.com/artalkjs/artalk/v2/internal/entity"
+	"github.com/artalkjs/artalk/v2/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/utils"
 	"golang.org/x/sync/singleflight"
 )
 
@@ -16,38 +16,36 @@ type EntityHasIsEmpty interface {
 	IsEmpty() bool
 }
 
-// FindCreateAction (Thread Safe)
+// FindCreateAction is a thread-safe function that attempts to find an entity
+// using the provided findAction function. If the entity does not exist or the
+// result is empty, it will execute the createAction function to create a new entity.
 //
-// Use singleflight.Group to prevent duplicate creation if multiple goroutines access at the same time.
+// The function ensures that only one goroutine can perform the find or create
+// operation for a given key at a time, using the singleflight mechanism to prevent
+// duplicate operations.
 func FindCreateAction[T EntityHasIsEmpty](
 	key string,
 	findAction func() (T, error),
 	createAction func() (T, error),
 ) (T, error) {
 	result, err, _ := findCreateSingleFlightGroup.Do(key, func() (any, error) {
-		r, err := findAction()
-		if err != nil {
-			return nil, err
+		if r, err := findAction(); err != nil || !r.IsEmpty() {
+			return r, err
 		}
-		if r.IsEmpty() {
-			if r, err = createAction(); err != nil {
-				return nil, err
-			}
-		}
-		return r, nil
+		return createAction()
 	})
 	if err != nil {
-		log.Error("[FindCreate] ", err)
-		return result.(T), err
+		log.Errorf("[FindCreateAction] key: %s, error: %v", key, err)
+		return *new(T), err
 	}
 	return result.(T), nil
 }
 
-func (dao *Dao) FindCreateSite(siteName string) entity.Site {
+func (dao *Dao) FindCreateSite(siteName string, siteURLs string) entity.Site {
 	r, _ := FindCreateAction(fmt.Sprintf(SiteByNameKey, siteName), func() (entity.Site, error) {
 		return dao.FindSite(siteName), nil
 	}, func() (entity.Site, error) {
-		return dao.NewSite(siteName, ""), nil
+		return dao.NewSite(siteName, siteURLs), nil
 	})
 	return r
 }

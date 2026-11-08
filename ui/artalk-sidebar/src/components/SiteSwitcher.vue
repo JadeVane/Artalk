@@ -2,7 +2,7 @@
 import { storeToRefs } from 'pinia'
 import { useNavStore } from '../stores/nav'
 import { useUserStore } from '../stores/user'
-import { bootParams } from '@/global'
+import { isOpenFromSidebar } from '@/global'
 
 const el = ref<HTMLElement | null>(null)
 
@@ -69,6 +69,8 @@ watch(curtShow, (value) => {
 })
 
 function logout() {
+  if (!window.confirm(t('logoutConfirm'))) return
+
   useUserStore().logout()
   nextTick(() => {
     router.replace('/login')
@@ -78,7 +80,7 @@ function logout() {
 
 <template>
   <Transition>
-    <div ref="el" v-show="curtShow" class="atk-site-list-floater">
+    <div v-show="curtShow" ref="el" class="atk-site-list-floater">
       <div class="atk-sites">
         <div
           v-for="(site, i) in displaySites"
@@ -92,7 +94,7 @@ function logout() {
         </div>
 
         <!-- Logout Button -->
-        <div v-if="!bootParams.user?.email" class="atk-site-item" @click="logout()">
+        <div v-if="!isOpenFromSidebar()" class="atk-site-item" @click="logout()">
           <svg
             class="atk-site-logo"
             stroke="currentColor"
@@ -130,6 +132,11 @@ function logout() {
   overflow-y: auto;
   transition: all 0.2s ease;
 
+  @media (min-width: 1024px) {
+    left: 10px;
+    max-width: 260px;
+  }
+
   .atk-sites {
     display: flex;
     flex-direction: column;
@@ -147,7 +154,7 @@ function logout() {
         width: 20px;
         height: 20px;
         line-height: 20px;
-        background: #697182;
+        background: #5b6f7e;
         margin: 10px;
         border-radius: 3px;
         text-align: center;

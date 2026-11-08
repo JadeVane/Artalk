@@ -72,10 +72,14 @@ export default defineLocaleExternal('zh-TW', {
   ctrlCenter: '控制中心',
 
   /* Auth */
+  userProfile: '個人資料',
   noAccountPrompt: '沒有帳號？',
   haveAccountPrompt: '已有帳號？',
   forgetPassword: '忘記密碼',
   resetPassword: '重置密碼',
+  changePassword: '修改密碼',
+  confirmPassword: '確認密碼',
+  passwordMismatch: '兩次輸入的密碼不一致',
   verificationCode: '驗證碼',
   verifySend: '發送驗證碼',
   verifyResend: '重新發送',
@@ -84,7 +88,7 @@ export default defineLocaleExternal('zh-TW', {
   password: '密碼',
   username: '用戶名',
   nextStep: '下一步',
-  skipNotVerify: '跳過，不驗證',
+  skipVerify: '跳過驗證',
   logoutConfirm: '確定要登出嗎？',
   accountMergeNotice: '您的電子郵件下有多個不同 ID 的帳戶。',
   accountMergeSelectOne: '請選擇要將所有數據合併到其中的一個。',
@@ -93,8 +97,8 @@ export default defineLocaleExternal('zh-TW', {
   merge: '合併',
 
   /* General */
-  frontend: '前端',
-  backend: '後端',
+  client: '客戶端',
+  server: '伺服器',
   loading: '加載中',
   loadFail: '加載失敗',
   editing: '修改中',

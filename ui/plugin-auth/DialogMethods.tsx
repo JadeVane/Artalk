@@ -1,10 +1,11 @@
 import { createEffect, createMemo, createSignal, For, Resource } from 'solid-js'
-import type { ContextApi } from 'artalk'
 import { startOAuthLogin } from './lib/oauth-login'
 import { loginByToken } from './lib/token-login'
+import { LoginMethod } from './lib/methods'
+import type { AuthContext } from './types'
 
 export interface DialogMethodsProps {
-  ctx: ContextApi
+  ctx: AuthContext
   methods: Resource<LoginMethod[]>
   changeTitle: (title: string) => void
   onComplete: () => void
@@ -12,6 +13,7 @@ export interface DialogMethodsProps {
 
 export const DialogMethods = (props: DialogMethodsProps) => {
   const { ctx, methods } = props
+  const [isLoading, setIsLoading] = createSignal(true)
 
   props.changeTitle(ctx.$t('signIn'))
 
@@ -21,14 +23,17 @@ export const DialogMethods = (props: DialogMethodsProps) => {
       (async () => {
         const url = /^(http|https):\/\//.test(m.link!)
           ? m.link!
-          : `${ctx.getConf().server}${m.link}`
-        const { token } = await startOAuthLogin(ctx, url)
+          : `${ctx.getConf().get().server}${m.link}`
+        const { token } = await startOAuthLogin(ctx, url, m.callbackOrigin)
         loginByToken(ctx, token)
         props.onComplete()
       })()
   }
 
   createEffect(() => {
+    if (methods()?.length) setIsLoading(false)
+    else setIsLoading(true)
+
     if (methods()?.length === 1) {
       const m = methods()![0]
       clickHandler(m)
@@ -39,7 +44,11 @@ export const DialogMethods = (props: DialogMethodsProps) => {
     <div class="atk-methods">
       <For each={methods()}>
         {(m) => (
-          <div class="atk-method-item" data-method={m.name} onClick={() => clickHandler(m)}>
+          <div
+            class="atk-method-item atk-fade-in"
+            data-method={m.name}
+            onClick={() => clickHandler(m)}
+          >
             <div
               class="atk-method-icon"
               style={{
@@ -50,6 +59,13 @@ export const DialogMethods = (props: DialogMethodsProps) => {
           </div>
         )}
       </For>
+      {isLoading() &&
+        [...Array(3)].map((_, i) => (
+          <div class="atk-method-item atk-methods-loading atk-fade-in">
+            <div class="atk-method-icon"></div>
+            <div class="atk-method-text"></div>
+          </div>
+        ))}
     </div>
   )
 

@@ -1,6 +1,6 @@
-import $t from '@/i18n'
 import * as Utils from '../../lib/utils'
 import type Render from '../render'
+import $t from '@/i18n'
 
 /**
  * 评论头部界面
@@ -21,7 +21,7 @@ function renderNick(r: Render) {
 
   if (r.data.link) {
     const $nickA = Utils.createElement<HTMLLinkElement>(
-      '<a target="_blank" rel="noreferrer noopener nofollow"></a>',
+      '<a target="_blank" rel="noreferrer noopener nofollow ugc"></a>',
     )
     $nickA.innerText = r.data.nick
     $nickA.href = Utils.isValidURL(r.data.link) ? r.data.link : `https://${r.data.link}`
@@ -44,7 +44,7 @@ function renderVerifyBadge(ctx: Render) {
     ctx.$headerBadgeWrap.append($badge)
   } else if (ctx.data.is_verified) {
     const $verifiedBadge = Utils.createElement(
-      `<span class="atk-verified-icon" title="${$t('emailVerified')}"></span>`,
+      `<span class="atk-icon-verified" title="${$t('emailVerified')}"></span>`,
     ) // 邮箱验证徽章
     ctx.$headerBadgeWrap.append($verifiedBadge)
   }

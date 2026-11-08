@@ -6,6 +6,9 @@ on:
       version:
         required: true
         type: string
+      ref:
+        required: true
+        type: string
       dry_run:
         required: true
         type: boolean
@@ -13,18 +16,24 @@ on:
         required: true
         type: number
 
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
 jobs:
   done:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          ref: ${{ inputs.version }}
+          ref: ${{ inputs.ref }}
+          persist-credentials: false
 
       - name: Comment done info
         uses: ./.github/actions/comment
-        if: ${{ inputs.issue_number != 0 }}
+        if: ${{ !inputs.dry_run && inputs.issue_number != 0 }}
         with:
           issue_number: ${{ inputs.issue_number }}
           content: |-

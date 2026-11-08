@@ -10,7 +10,7 @@ app_key: ""
 # Debug mode
 debug: false
 
-# Language (follow Unicode BCP 47) ["en", "zh-CN", "zh-TW", "jp", "fr", "ko", "ru"]
+# Language (follow Unicode BCP 47) ["en", "zh-CN", "zh-TW", "ja", "fr", "ko", "ru", "tr", "pt-PT"]
 # -- see https://www.techonthenet.com/js/language_tags.php --
 locale: en
 
@@ -20,6 +20,9 @@ timezone: Asia/Shanghai
 
 # Default site name (create when app is first launched)
 site_default: Default Site
+
+# Default site url
+site_url: ""
 
 # Login timeout (in seconds)
 login_timeout: 259200
@@ -92,6 +95,9 @@ cache:
 # -- e.g. ["https://artalk.example.com:23366"] add url of your site her --
 trusted_domains: []
 
+# Auto-fetch page titles (Disabled by default for security; manual fetching remains available)
+page_title_auto_fetch: false
+
 # SSL
 ssl:
   # Enable SSL
@@ -147,7 +153,7 @@ captcha:
   enabled: true
   # Captcha is required always
   always: false
-  # Captcha type ["image", "turnstile", "recaptcha", "hcaptcha", "geetest"]
+  # Captcha type ["image", "turnstile", "recaptcha", "hcaptcha", "geetest", "capjs"]
   captcha_type: image
   # Action limit
   # (the number of actions required to activate captcha)
@@ -172,6 +178,11 @@ captcha:
   geetest:
     captcha_id: ""
     captcha_key: ""
+  # Cap (https://capjs.js.org/)
+  capjs:
+    key_id: ""
+    secret_key: ""
+    api_endpoint: ""
 
 # Upload
 img_upload:
@@ -287,7 +298,7 @@ auth:
   # Enable Social Login
   enabled: false
   # Allow anonymous commenting (Allow skipping verification, only fill in an anonymous nickname and email)
-  anonymous: true
+  anonymous: false
   # Callback URL (https://example.com/api/v2/auth/{provider}/callback)
   callback: "http://localhost:23366/api/v2/auth/{provider}/callback"
   # Email
@@ -313,6 +324,8 @@ auth:
     enabled: false
     client_id: ""
     client_secret: ""
+    # Server URL (leave empty for https://gitea.com; supports ports and subpaths)
+    site_url: ""
   # Google
   google:
     enabled: false
@@ -383,6 +396,20 @@ auth:
     client_id: ""
     client_secret: ""
     domain: ""
+  # Okta
+  okta:
+    enabled: false
+    client_id: ""
+    client_secret: ""
+    # Issuer URL (HTTPS, e.g. https://example.okta.com/oauth2/default)
+    issuer: ""
+  # SSO (Exchange external OIDC access tokens for Artalk login sessions, verified via the IdP's /userinfo endpoint)
+  # -- Use this when the embedding app already runs OIDC and you want Artalk to inherit that session without its own popup login UI. --
+  sso:
+    # Enable SSO token exchange
+    enabled: false
+    # OIDC issuer URL (e.g. "tenant.auth0.com" or "https://tenant.auth0.com")
+    issuer: ""
 
 # UI Settings
 frontend:
@@ -398,16 +425,12 @@ frontend:
   emoticons: https://cdn.jsdelivr.net/gh/ArtalkJS/Emoticons/grps/default.json
   # Vote button
   vote: true
-  # Dislike button
+  # Vote down button
   voteDown: false
   # User UA badge
   uaBadge: false
   # Comment sorting
   listSort: true
-  # Page PV binding element
-  pvEl: "#ArtalkPV"
-  # Comment count binding element
-  countEl: "#ArtalkCount"
   # Editor real-time preview
   preview: true
   # Flatten mode ["auto", true, false]
@@ -423,7 +446,7 @@ frontend:
     # API URL
     mirror: https://www.gravatar.com/avatar/
     # API parameters
-    params: d=mp&s=240
+    params: sha256=1&d=mp&s=240
   # Comment pagination
   pagination:
     # Number of comments per page

@@ -3,7 +3,7 @@ package entity
 import (
 	"time"
 
-	"github.com/ArtalkJS/Artalk/internal/utils"
+	"github.com/artalkjs/artalk/v2/internal/utils"
 	"gorm.io/gorm"
 )
 
@@ -27,5 +27,5 @@ func (n Notify) IsEmpty() bool {
 
 // 操作时的验证密钥（判断是否本人操作）
 func (n *Notify) GenerateKey() {
-	n.Key = utils.PseudorandomStringWithAlphabet(5, "ABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890")
+	n.Key = utils.RandomString(32)
 }

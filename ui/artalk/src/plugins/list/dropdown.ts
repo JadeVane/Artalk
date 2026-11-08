@@ -3,8 +3,13 @@ import * as Utils from '@/lib/utils'
 import $t from '@/i18n'
 
 export const Dropdown: ArtalkPlugin = (ctx) => {
+  const list = ctx.inject('list')
+  const conf = ctx.inject('config')
+
   const reloadUseParamsEditor = (func: (p: any) => void) => {
-    ctx.conf.listFetchParamsModifier = func
+    conf.update({
+      listFetchParamsModifier: func,
+    })
     ctx.reload()
   }
 
@@ -49,9 +54,7 @@ export const Dropdown: ArtalkPlugin = (ctx) => {
   }
 
   ctx.watchConf(['listSort', 'locale'], (conf) => {
-    const list = ctx.get('list')
-
-    const $count = list.$el.querySelector<HTMLElement>('.atk-comment-count')
+    const $count = list.getEl().querySelector<HTMLElement>('.atk-comment-count')
     if (!$count) return
 
     // 评论列表排序 Dropdown 下拉选择层
@@ -81,7 +84,7 @@ function renderDropdown(conf: {
 
   // 列表项点击事件
   let curtActive = 0 // 当前选中
-  const onItemClick = (i: number, $item: HTMLElement, name: string, action: Function) => {
+  const onItemClick = (i: number, $item: HTMLElement, name: string, action: () => void) => {
     action()
 
     // set active
@@ -101,8 +104,7 @@ function renderDropdown(conf: {
   // 生成列表元素
   const $dropdown = Utils.createElement(`<ul class="atk-dropdown atk-fade-in"></ul>`)
   dropdownList.forEach((item, i) => {
-    const name = item[0] as string
-    const action = item[1] as Function
+    const [name, action] = item
 
     const $item = Utils.createElement(`<li class="atk-dropdown-item"><span></span></li>`)
     const $link = $item.querySelector<HTMLElement>('span')!

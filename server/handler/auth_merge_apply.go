@@ -5,11 +5,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/core"
-	"github.com/ArtalkJS/Artalk/internal/entity"
-	"github.com/ArtalkJS/Artalk/internal/log"
-	"github.com/ArtalkJS/Artalk/internal/sync"
-	"github.com/ArtalkJS/Artalk/server/common"
+	"github.com/artalkjs/artalk/v2/internal/core"
+	"github.com/artalkjs/artalk/v2/internal/entity"
+	"github.com/artalkjs/artalk/v2/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/sync"
+	"github.com/artalkjs/artalk/v2/server/common"
 	"github.com/gofiber/fiber/v2"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
@@ -44,8 +44,9 @@ func AuthMergeApply(app *core.App, router fiber.Router) {
 
 	router.Post("/auth/merge", common.LoginGuard(app, func(c *fiber.Ctx, user entity.User) error {
 		// Mutex for each user to avoid concurrent merge operation
-		mutexMap.Lock(user.ID)
-		defer mutexMap.Unlock(user.ID)
+		mutex := mutexMap.GetLock(user.ID)
+		mutex.Lock()
+		defer mutex.Unlock()
 
 		if user.Email == "" {
 			return common.RespError(c, 500, "User email is empty")
@@ -99,6 +100,7 @@ func AuthMergeApply(app *core.App, router fiber.Router) {
 		// Begin a transaction to Merge all user data to target user
 		if err := app.Dao().DB().Transaction(func(tx *gorm.DB) error {
 			// Merge all user data to target user
+			// @note Search code files under `./internal/entity` keyword 'UserID` to find all related tables
 			for _, u := range otherUsers {
 				// comments
 				if tx := app.Dao().DB().Model(&entity.Comment{}).
@@ -122,6 +124,12 @@ func AuthMergeApply(app *core.App, router fiber.Router) {
 					return tx.Error
 				} else {
 					resp.UpdatedVote += tx.RowsAffected
+				}
+
+				// auth_identities
+				if tx := app.Dao().DB().Model(&entity.AuthIdentity{}).
+					Where("user_id = ?", u.ID).Update("user_id", targetUser.ID); tx.Error != nil {
+					return tx.Error
 				}
 			}
 

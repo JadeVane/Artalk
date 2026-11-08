@@ -2,11 +2,12 @@ import { defineConfig } from 'vite'
 import { resolve } from 'path'
 import vue from '@vitejs/plugin-vue'
 import AutoImport from 'unplugin-auto-import/vite'
-import VueRouter from 'unplugin-vue-router/vite'
-import { VueRouterAutoImports } from 'unplugin-vue-router'
+import VueRouter from 'vue-router/vite'
+import { VueRouterAutoImports } from 'vue-router/unplugin'
 import Components from 'unplugin-vue-components/vite'
 import { HeadlessUiResolver } from 'unplugin-vue-components/resolvers'
 import { fileURLToPath, URL } from 'node:url'
+import checker from 'vite-plugin-checker'
 
 // https://vitejs.dev/config/
 export default defineConfig({
@@ -23,6 +24,16 @@ export default defineConfig({
     AutoImport({
       imports: ['vue', VueRouterAutoImports, 'vue-i18n'],
     }),
+    {
+      ...checker({
+        // vueTsc: true, // FIXME: see https://github.com/fi3ework/vite-plugin-checker/issues/306
+        eslint: {
+          useFlatConfig: true,
+          lintCommand: 'eslint .',
+        },
+      }),
+      apply: 'serve',
+    },
     (() => ({
       name: 'prod-vue-resolver',
       resolveId(id) {
@@ -50,7 +61,9 @@ export default defineConfig({
   css: {
     preprocessorOptions: {
       scss: {
-        additionalData: `@import "./src/style/_variables.scss";@import "./src/style/_extends.scss";`,
+        loadPaths: [resolve(__dirname, 'src/style')],
+        silenceDeprecations: ['import'], // https://sass-lang.com/documentation/breaking-changes/import/
+        additionalData: `@import "variables";@import "extends";`,
       },
     },
   },

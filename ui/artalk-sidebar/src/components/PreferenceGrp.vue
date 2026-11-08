@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import settings, { type OptionNode } from '../lib/settings'
+import type { OptionNode } from '../lib/settings'
 
 const props = defineProps<{
   node: OptionNode
@@ -84,7 +84,8 @@ const hiddenNodes = ['admin_users']
         content: '';
         height: 10px;
         width: 10px;
-        background: rgba(136, 195, 250, 0.7);
+        background: #8ecee2;
+        border-radius: 2px;
       }
     }
   }

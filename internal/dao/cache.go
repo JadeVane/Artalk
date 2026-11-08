@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/cache"
-	"github.com/ArtalkJS/Artalk/internal/entity"
+	"github.com/artalkjs/artalk/v2/internal/cache"
+	"github.com/artalkjs/artalk/v2/internal/entity"
 	"golang.org/x/exp/slices"
 )
 
@@ -17,7 +17,7 @@ const (
 	SiteByNameKey          = "site#name=%s"
 	PageByIDKey            = "page#id=%d"
 	PageByKeySiteNameKey   = "page#key=%s;site_name=%s"
-	CommentByIDKey         = "comment#id=%d"
+	CommentByIDKey         = "comment#v2:id=%d" // Ignore cached structs with pre-rename guest proofs.
 	CommentChildIDsByIDKey = "comment_child_ids#id=%d"
 	NotifyByUserCommentKey = "notify#user_id=%d;comment_id=%d"
 )

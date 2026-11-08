@@ -3,8 +3,8 @@ package dao
 import (
 	"os"
 
-	"github.com/ArtalkJS/Artalk/internal/entity"
-	"github.com/ArtalkJS/Artalk/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/entity"
+	"github.com/artalkjs/artalk/v2/internal/log"
 )
 
 func (dao *Dao) MigrateModels() {
@@ -15,10 +15,28 @@ func (dao *Dao) MigrateModels() {
 		dao.MigrateRootID()
 	}
 
+	// Preserve anonymous ownership from earlier builds of the security branch.
+	if dao.DB().Migrator().HasColumn(&entity.Comment{}, "guest_key_hash") &&
+		!dao.DB().Migrator().HasColumn(&entity.Comment{}, "guest_token_hash") {
+		if err := dao.DB().Migrator().RenameColumn(&entity.Comment{}, "guest_key_hash", "guest_token_hash"); err != nil {
+			log.Fatal("[DB Migrator] Failed to rename guest token hash: ", err)
+		}
+		table := dao.GetTableName(&entity.Comment{})
+		oldIndex := dao.DB().NamingStrategy.IndexName(table, "guest_key_hash")
+		newIndex := dao.DB().NamingStrategy.IndexName(table, "guest_token_hash")
+		if dao.DB().Migrator().HasIndex(&entity.Comment{}, oldIndex) {
+			if err := dao.DB().Migrator().RenameIndex(&entity.Comment{}, oldIndex, newIndex); err != nil {
+				log.Fatal("[DB Migrator] Failed to rename guest token index: ", err)
+			}
+		}
+	}
+
 	// Migrate the schema
-	dao.DB().AutoMigrate(&entity.Site{}, &entity.Page{}, &entity.User{},
+	if err := dao.DB().AutoMigrate(&entity.Site{}, &entity.Page{}, &entity.User{},
 		&entity.AuthIdentity{}, &entity.UserEmailVerify{},
-		&entity.Comment{}, &entity.Notify{}, &entity.Vote{})
+		&entity.Comment{}, &entity.Notify{}, &entity.Vote{}); err != nil {
+		log.Fatal("[DB Migrator] Failed to migrate schema: ", err)
+	}
 
 	// Delete all foreign key constraints
 	// Leave relationship maintenance to the program and reduce the difficulty of database management.
@@ -70,25 +88,26 @@ func (dao *Dao) MigrateRootID() {
 		dao.DB().Migrator().AddColumn(&entity.Comment{}, "root_id")
 	}
 
+	tbComments := dao.GetTableName(&entity.Comment{})
 	if err := dao.DB().Raw(`WITH RECURSIVE CommentHierarchy AS (
 		SELECT id, id AS root_id, rid
-		FROM comments
+		FROM ` + tbComments + `
 		WHERE rid = 0
 
 		UNION ALL
 
 		SELECT c.id, ch.root_id, c.rid
-		FROM comments c
+		FROM ` + tbComments + ` c
 		INNER JOIN CommentHierarchy ch ON c.rid = ch.id
 	)
-	UPDATE comments SET root_id = (
+	UPDATE ` + tbComments + ` SET root_id = (
 		SELECT root_id
 		FROM CommentHierarchy
-		WHERE comments.id = CommentHierarchy.id
+		WHERE ` + tbComments + `.id = CommentHierarchy.id
 	);
 	`).Scan(&struct{}{}).Error; err == nil {
 		// no error, then do some patch
-		dao.DB().Table("comments").Where("id = root_id").Update("root_id", 0)
+		dao.DB().Model(&entity.Comment{}).Where("id = root_id").Update("root_id", 0)
 	} else {
 		// try backup plan (if recursive CTE is not supported)
 		log.Info(TAG, "Recursive CTE is not supported, trying backup plan... Please wait a moment. This may take a long time if there are many comments.")
@@ -133,7 +152,7 @@ func (dao *Dao) MergePages() {
 	}
 
 	// delete all pages
-	dao.DB().Exec("DELETE FROM pages")
+	dao.DB().Where("1 = 1").Delete(&entity.Page{})
 
 	// insert merged pages
 	pages = []*entity.Page{}

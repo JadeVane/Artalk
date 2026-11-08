@@ -1,68 +1,74 @@
 package ip_region
 
 import (
-	"fmt"
-	"strconv"
+	"path/filepath"
+	"strings"
 	"sync"
 
 	"github.com/lionsoul2014/ip2region/binding/golang/xdb"
 )
 
-var (
-	inMemorySearcher *xdb.Searcher
-	inMemoryLoadOnce sync.Once
-	inMemoryLoadErr  error
-)
-
-func newSearcherWithCache(dbPath string) (*xdb.Searcher, error) {
-	inMemoryLoadOnce.Do(func() {
-		// 1、从 dbPath 加载整个 xdb 到内存
-		cBuff, err := xdb.LoadContentFromFile(dbPath)
-		if err != nil {
-			inMemoryLoadErr = fmt.Errorf("failed to load content from %s: %w", strconv.Quote(dbPath), err)
-			return
-		}
-
-		// 2、用全局的 cBuff 创建完全基于内存的查询对象。
-		searcher, err := xdb.NewWithBuffer(cBuff)
-		if err != nil {
-			inMemoryLoadErr = fmt.Errorf("failed to create searcher with content: %w", err)
-			return
-		}
-
-		inMemorySearcher = searcher
-	})
-
-	return inMemorySearcher, inMemoryLoadErr
+type regionSearcher interface {
+	Search(ip string) (region, error)
+	Close()
 }
 
-func newSearcherWithFileOnly(dbPath string) (*xdb.Searcher, error) {
-	searcher, err := xdb.NewWithFileOnly(dbPath)
-	if err != nil {
-		return searcher, fmt.Errorf("failed to load content from %s: %w", strconv.Quote(dbPath), err)
+func newSearcher(dbPath string, useCache bool) (regionSearcher, error) {
+	if isIPDBPath(dbPath) {
+		return newIPDBSearcher(dbPath)
 	}
-
-	return searcher, nil
+	// Preserve existing XDB paths, including files without an extension.
+	return newXDBSearcher(dbPath, useCache)
 }
 
-func getSearcher(dbPath string, useCache bool) (*xdb.Searcher, error) {
-	// Using a cache would consume more memory space but accelerate IO.
+func isIPDBPath(dbPath string) bool {
+	return strings.EqualFold(filepath.Ext(dbPath), ".ipdb")
+}
+
+type xdbSearcher struct {
+	mu sync.Mutex // xdb.Searcher mutates its IO counter even in memory mode.
+	db *xdb.Searcher
+}
+
+func newXDBSearcher(dbPath string, useCache bool) (*xdbSearcher, error) {
+	var (
+		content []byte
+		header  *xdb.Header
+		err     error
+	)
 	if useCache {
-		return newSearcherWithCache(dbPath)
+		content, err = xdb.LoadContentFromFile(dbPath)
+		if err != nil {
+			return nil, err
+		}
+		header, err = xdb.LoadHeaderFromBuff(content)
 	} else {
-		return newSearcherWithFileOnly(dbPath)
+		header, err = xdb.LoadHeaderFromFile(dbPath)
 	}
-}
-
-func search(ip string, dbPath string, useCache bool) (string, error) {
-	searcher, err := getSearcher(dbPath, useCache)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
-
-	if !useCache { // 未使用缓存查询后释放以节省内存
-		defer searcher.Close()
+	version, err := xdb.VersionFromHeader(header)
+	if err != nil {
+		return nil, err
 	}
-
-	return searcher.SearchByStr(ip)
+	var db *xdb.Searcher
+	if useCache {
+		db, err = xdb.NewWithBuffer(version, content)
+	} else {
+		db, err = xdb.NewWithFileOnly(version, dbPath)
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &xdbSearcher{db: db}, nil
 }
+
+func (s *xdbSearcher) Search(ip string) (region, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	raw, err := s.db.Search(ip)
+	return parseXDBRegion(raw), err
+}
+
+func (s *xdbSearcher) Close() { s.db.Close() }

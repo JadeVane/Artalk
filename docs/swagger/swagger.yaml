@@ -45,9 +45,6 @@ definitions:
       msg:
         description: Message
         type: string
-    required:
-    - data
-    - msg
     type: object
   common.Map:
     additionalProperties: true
@@ -110,7 +107,6 @@ definitions:
     - date
     - email_encrypted
     - id
-    - ip_region
     - is_allow_reply
     - is_collapsed
     - is_pending
@@ -154,6 +150,8 @@ definitions:
     properties:
       admin_only:
         type: boolean
+      date:
+        type: string
       id:
         type: integer
       key:
@@ -172,6 +170,7 @@ definitions:
         type: integer
     required:
     - admin_only
+    - date
     - id
     - key
     - pv
@@ -272,6 +271,14 @@ definitions:
     type: object
   handler.Map:
     additionalProperties: true
+    type: object
+  handler.ParamsAuthSSOExchange:
+    properties:
+      token:
+        description: External IdP access token (e.g. an Auth0 access token)
+        type: string
+    required:
+    - token
     type: object
   handler.ParamsCaptchaVerify:
     properties:
@@ -471,7 +478,7 @@ definitions:
   handler.ParamsTransferImport:
     properties:
       assumeyes:
-        description: Automatically answer yes for all questions.
+        description: Automatically answer yes for all questions
         type: boolean
       json_data:
         description: The JSON data
@@ -485,6 +492,9 @@ definitions:
       target_site_url:
         description: The target site url
         type: string
+      url_keep_domain:
+        description: Keep domain
+        type: boolean
       url_resolver:
         description: Enable URL resolver
         type: boolean
@@ -568,7 +578,7 @@ definitions:
     - name
     - receive_email
     type: object
-  handler.ParamsVote:
+  handler.ParamsVoteCreate:
     properties:
       email:
         description: The user email
@@ -618,6 +628,20 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  handler.RequestUserInfoUpdate:
+    properties:
+      code:
+        type: string
+      email:
+        type: string
+      link:
+        type: string
+      name:
+        type: string
+    required:
+    - email
+    - name
     type: object
   handler.ResponseAdminUserList:
     properties:
@@ -735,7 +759,6 @@ definitions:
     - date
     - email_encrypted
     - id
-    - ip_region
     - is_allow_reply
     - is_collapsed
     - is_pending
@@ -782,7 +805,6 @@ definitions:
     required:
     - comments
     - count
-    - page
     - roots_count
     type: object
   handler.ResponseCommentUpdate:
@@ -843,7 +865,6 @@ definitions:
     - date
     - email_encrypted
     - id
-    - ip_region
     - is_allow_reply
     - is_collapsed
     - is_pending
@@ -865,6 +886,8 @@ definitions:
     properties:
       anonymous:
         type: boolean
+      callback_origin:
+        type: string
       providers:
         items:
           $ref: '#/definitions/auth.AuthProviderInfo'
@@ -901,6 +924,8 @@ definitions:
     properties:
       admin_only:
         type: boolean
+      date:
+        type: string
       id:
         type: integer
       key:
@@ -919,6 +944,7 @@ definitions:
         type: integer
     required:
     - admin_only
+    - date
     - id
     - key
     - pv
@@ -971,6 +997,8 @@ definitions:
     properties:
       admin_only:
         type: boolean
+      date:
+        type: string
       id:
         type: integer
       key:
@@ -989,6 +1017,7 @@ definitions:
         type: integer
     required:
     - admin_only
+    - date
     - id
     - key
     - pv
@@ -1000,9 +1029,14 @@ definitions:
     type: object
   handler.ResponseSettingGet:
     properties:
+      envs:
+        items:
+          type: string
+        type: array
       yaml:
         type: string
     required:
+    - envs
     - yaml
     type: object
   handler.ResponseSettingTemplate:
@@ -1153,6 +1187,13 @@ definitions:
     - notifies_count
     - user
     type: object
+  handler.ResponseUserInfoUpdate:
+    properties:
+      user:
+        $ref: '#/definitions/entity.CookedUser'
+    required:
+    - user
+    type: object
   handler.ResponseUserLogin:
     properties:
       token:
@@ -1217,10 +1258,16 @@ definitions:
     properties:
       down:
         type: integer
+      is_down:
+        type: boolean
+      is_up:
+        type: boolean
       up:
         type: integer
     required:
     - down
+    - is_down
+    - is_up
     - up
     type: object
 info:
@@ -1282,7 +1329,7 @@ paths:
       consumes:
       - application/json
       description: Register by email and verify code (if user exists, will update
-        user, like forget password. Need send email verify code first)
+        user, like forget or change password. Need send email verify code first)
       operationId: RegisterByEmail
       parameters:
       - description: The data to register
@@ -1936,7 +1983,8 @@ paths:
     get:
       consumes:
       - application/json
-      description: Get a list of notifies for user
+      description: Get unread notifications owned by the authenticated user or anonymous
+        comment credential
       operationId: GetNotifies
       parameters:
       - description: The user name
@@ -1974,6 +2022,8 @@ paths:
                 msg:
                   type: string
               type: object
+      security:
+      - ApiKeyAuth: []
       summary: Get Notifies
       tags:
       - Notify
@@ -2033,7 +2083,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Mark all notifies as read for user
+      description: Mark owned notifications as read using a login or anonymous comment
+        credential
       operationId: MarkAllNotifyRead
       parameters:
       - description: The options
@@ -2058,6 +2109,15 @@ paths:
                 msg:
                   type: string
               type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
         "500":
           description: Internal Server Error
           schema:
@@ -2067,6 +2127,8 @@ paths:
                 msg:
                   type: string
               type: object
+      security:
+      - ApiKeyAuth: []
       summary: Mark All Notifies as Read
       tags:
       - Notify
@@ -2077,6 +2139,10 @@ paths:
       description: Get a list of pages by some conditions
       operationId: GetPages
       parameters:
+      - description: Only include pages with comments (including pending comments)
+        in: query
+        name: has_comments
+        type: boolean
       - description: The limit for pagination
         in: query
         name: limit
@@ -2085,6 +2151,10 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Search keywords
+        in: query
+        name: search
+        type: string
       - description: The site name of your content scope
         in: query
         name: site_name
@@ -2630,6 +2700,87 @@ paths:
       summary: Update Site
       tags:
       - Site
+  /sso/exchange:
+    post:
+      consumes:
+      - application/json
+      description: Validates a third-party OIDC access token by calling the issuer's
+        /userinfo endpoint, requires a verified email claim, then mints an Artalk
+        session JWT. Use when the surrounding application already runs OIDC and you
+        want Artalk comments to inherit that session without showing Artalk's own
+        login UI.
+      operationId: AuthSSOExchange
+      parameters:
+      - description: External SSO token
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/handler.ParamsAuthSSOExchange'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ResponseUserLogin'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "401":
+          description: Unauthorized
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "502":
+          description: Bad Gateway
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "503":
+          description: Service Unavailable
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+      summary: Exchange an external IdP access token for an Artalk JWT
+      tags:
+      - Auth
   /stats/{type}:
     get:
       consumes:
@@ -2882,6 +3033,48 @@ paths:
       security:
       - ApiKeyAuth: []
       summary: Get User Info
+      tags:
+      - Auth
+    post:
+      consumes:
+      - application/json
+      description: Update user profile when user is logged in
+      operationId: UpdateProfile
+      parameters:
+      - description: The profile data to update
+        in: body
+        name: data
+        required: true
+        schema:
+          $ref: '#/definitions/handler.RequestUserInfoUpdate'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ResponseUserInfoUpdate'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+      security:
+      - ApiKeyAuth: []
+      summary: Update user profile
       tags:
       - Auth
   /user/access_token:
@@ -3155,6 +3348,10 @@ paths:
         in: query
         name: offset
         type: integer
+      - description: Search keywords
+        in: query
+        name: search
+        type: string
       produces:
       - application/json
       responses:
@@ -3190,34 +3387,106 @@ paths:
       summary: Get Version Info
       tags:
       - System
-  /votes/{type}/{target_id}:
-    post:
+  /votes/{target_name}/{target_id}:
+    get:
       consumes:
       - application/json
-      description: Vote for a specific comment or page
-      operationId: Vote
+      description: Get vote status for a specific comment or page
+      operationId: GetVote
       parameters:
-      - description: The type of vote target
+      - description: The name of vote target
         enum:
-        - comment_up
-        - comment_down
-        - page_up
-        - page_down
+        - comment
+        - page
         in: path
-        name: type
+        name: target_name
         required: true
         type: string
-      - description: Target comment or page ID you want to vote for
+      - description: The target comment or page ID
         in: path
         name: target_id
         required: true
         type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/handler.ResponseVote'
+        "400":
+          description: Bad Request
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "403":
+          description: Forbidden
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "404":
+          description: Not Found
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+        "500":
+          description: Internal Server Error
+          schema:
+            allOf:
+            - $ref: '#/definitions/handler.Map'
+            - properties:
+                msg:
+                  type: string
+              type: object
+      summary: Get Vote Status
+      tags:
+      - Vote
+  /votes/{target_name}/{target_id}/{choice}:
+    post:
+      consumes:
+      - application/json
+      description: Create a new vote for a specific comment or page
+      operationId: CreateVote
+      parameters:
+      - description: The name of vote target
+        enum:
+        - comment
+        - page
+        in: path
+        name: target_name
+        required: true
+        type: string
+      - description: The target comment or page ID
+        in: path
+        name: target_id
+        required: true
+        type: integer
+      - description: The vote choice
+        enum:
+        - up
+        - down
+        in: path
+        name: choice
+        required: true
+        type: string
       - description: The vote data
         in: body
         name: vote
         required: true
         schema:
-          $ref: '#/definitions/handler.ParamsVote'
+          $ref: '#/definitions/handler.ParamsVoteCreate'
       produces:
       - application/json
       responses:
@@ -3252,7 +3521,7 @@ paths:
                 msg:
                   type: string
               type: object
-      summary: Vote
+      summary: Create Vote
       tags:
       - Vote
   /votes/sync:

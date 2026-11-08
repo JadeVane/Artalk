@@ -1,8 +1,19 @@
 {
   "name": "@artalk/plugin-auth",
-  "version": "0.0.1",
+  "version": "0.0.3",
+  "minAppVersion": "2.10.0",
   "license": "LGPL-3.0-only",
   "description": "Auth plugin for artalk",
+  "homepage": "https://github.com/ArtalkJS/Artalk/tree/master/ui/plugin-auth",
+  "bugs": "https://github.com/ArtalkJS/Artalk/issues",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ArtalkJS/Artalk.git",
+    "directory": "ui/plugin-auth"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
   "type": "module",
   "files": [
     "dist"
@@ -26,15 +37,16 @@
     "dev": "vite",
     "build": "vite build",
     "serve": "vite preview",
-    "prepublish": "pnpm build",
-    "publish": "pnpm publish --access=public"
-  },
-  "dependencies": {
-    "artalk": "workspace:^",
-    "solid-js": "^1.8.17"
+    "test:attw": "pnpx @arethetypeswrong/cli@0.18.5 --pack ."
   },
   "devDependencies": {
-    "vite-plugin-css-injected-by-js": "^3.5.1",
-    "vite-plugin-solid": "^2.10.2"
+    "@artalk/plugin-kit": "workspace:^",
+    "artalk": "workspace:^",
+    "solid-js": "^1.9.14",
+    "vite-plugin-css-injected-by-js": "^5.0.2",
+    "vite-plugin-solid": "^2.11.13"
+  },
+  "peerDependencies": {
+    "artalk": "^2.10.0"
   }
 }

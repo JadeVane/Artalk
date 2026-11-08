@@ -7,14 +7,14 @@ import (
 	"sync"
 	"time"
 
-	"github.com/ArtalkJS/Artalk/internal/cache"
-	"github.com/ArtalkJS/Artalk/internal/config"
-	"github.com/ArtalkJS/Artalk/internal/dao"
-	"github.com/ArtalkJS/Artalk/internal/db"
-	"github.com/ArtalkJS/Artalk/internal/hook"
-	"github.com/ArtalkJS/Artalk/internal/i18n"
-	"github.com/ArtalkJS/Artalk/internal/log"
-	"github.com/ArtalkJS/Artalk/internal/pkged"
+	"github.com/artalkjs/artalk/v2/internal/cache"
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/dao"
+	"github.com/artalkjs/artalk/v2/internal/db"
+	"github.com/artalkjs/artalk/v2/internal/hook"
+	"github.com/artalkjs/artalk/v2/internal/i18n"
+	"github.com/artalkjs/artalk/v2/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/pkged"
 )
 
 type App struct {
@@ -42,11 +42,11 @@ func NewApp(conf *config.Config) *App {
 }
 
 func (app *App) injectDefaultServices() {
-	// 请勿依赖注入顺序
-	AppInject[*EmailService](app, NewEmailService(app))
-	AppInject[*IPRegionService](app, NewIPRegionService(app))
-	AppInject[*NotifyService](app, NewNotifyService(app))
-	AppInject[*AntiSpamService](app, NewAntiSpamService(app))
+	// Please do not depend on the order of dependency injection
+	AppInject(app, NewEmailService(app))
+	AppInject(app, NewIPRegionService(app))
+	AppInject(app, NewNotifyService(app))
+	AppInject(app, NewAntiSpamService(app))
 }
 
 func (app *App) registerDefaultHooks() {
@@ -58,6 +58,42 @@ func (app *App) registerDefaultHooks() {
 
 var mutex = sync.Mutex{}
 
+type timezoneInitializer struct {
+	once sync.Once
+	name string
+	err  error
+}
+
+func (i *timezoneInitializer) init(timezone string, apply func(*time.Location)) error {
+	if timezone == "" {
+		timezone = "Local"
+	}
+
+	i.once.Do(func() {
+		i.name = timezone
+		if timezone == "Local" {
+			return
+		}
+
+		local, err := time.LoadLocation(timezone)
+		if err != nil {
+			i.err = fmt.Errorf("timezone load error: %w (please check config or system env)", err)
+			return
+		}
+		apply(local)
+	})
+
+	if i.err != nil {
+		return i.err
+	}
+	if i.name != timezone {
+		return fmt.Errorf("timezone is already initialized as %q; restart the process to change it to %q", i.name, timezone)
+	}
+	return nil
+}
+
+var processTimezone timezoneInitializer
+
 // Bootstrap implements App.
 func (app *App) Bootstrap() error {
 	mutex.Lock()
@@ -67,14 +103,11 @@ func (app *App) Bootstrap() error {
 		return fmt.Errorf("app.conf cannot be nil while bootstrap")
 	}
 
-	// 时区设置
-	timezone := app.Conf().TimeZone
-	if timezone != "" {
-		if local, err := time.LoadLocation(timezone); err == nil {
-			time.Local = local
-		} else {
-			return fmt.Errorf("timezone load error: %w (please check config or system env)", err)
-		}
+	// time.Local is process-global and must not be mutated after services start.
+	if err := processTimezone.init(app.Conf().TimeZone, func(local *time.Location) {
+		time.Local = local
+	}); err != nil {
+		return err
 	}
 
 	// i18n
@@ -269,6 +302,11 @@ func (app *App) initDao() error {
 
 	// create new dao instance
 	app.SetDao(dao.NewDao(dbInstance))
+
+	// patch: switch comment email hash algorithm by config
+	app.Dao().SetCommentEmailHashFunc(func(email string) string {
+		return config.GetHashFuncByFrontendConf(app.Conf())(strings.ToLower(email))
+	})
 
 	return nil
 }

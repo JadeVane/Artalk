@@ -1,20 +1,39 @@
-import type { ContextApi, SidebarShowPayload } from '@/types'
-import Component from '@/lib/component'
+import SidebarHTML from './sidebar-layer.html?raw'
+import type {
+  SidebarShowPayload,
+  ConfigManager,
+  UserManager,
+  LayerManager,
+  Layer,
+  SidebarLayer as ISidebarLayer,
+  CheckerManager,
+} from '@/types'
 import * as Utils from '@/lib/utils'
 import * as Ui from '@/lib/ui'
-import SidebarHTML from './sidebar-layer.html?raw'
-import type { Layer } from './layer'
+import type { Api } from '@/api'
 
-export default class SidebarLayer extends Component {
+export interface SidebarLayerOptions {
+  onShow?: () => void
+  onHide?: () => void
+
+  getCheckers: () => CheckerManager
+  getApi: () => Api
+  getConf: () => ConfigManager
+  getUser: () => UserManager
+  getLayers: () => LayerManager
+}
+
+export class SidebarLayer implements ISidebarLayer {
+  private opts: SidebarLayerOptions
+  public $el: HTMLElement
   public layer?: Layer
   public $header: HTMLElement
   public $closeBtn: HTMLElement
   public $iframeWrap: HTMLElement
   public $iframe?: HTMLIFrameElement
 
-  constructor(ctx: ContextApi) {
-    super(ctx)
-
+  constructor(opts: SidebarLayerOptions) {
+    this.opts = opts
     this.$el = Utils.createElement(SidebarHTML)
     this.$header = this.$el.querySelector('.atk-sidebar-header')!
     this.$closeBtn = this.$header.querySelector('.atk-sidebar-close')!
@@ -23,15 +42,14 @@ export default class SidebarLayer extends Component {
     this.$closeBtn.onclick = () => {
       this.hide()
     }
-
-    // event
-    this.ctx.on('user-changed', () => {
-      this.refreshOnShow = true
-    })
   }
 
-  /** Refresh iFrame on show */
-  private refreshOnShow = true
+  public async onUserChanged() {
+    this.refreshWhenShow = true
+  }
+
+  /** Refresh iFrame when show */
+  private refreshWhenShow = true
 
   /** Animation timer */
   private animTimer?: any = undefined
@@ -45,8 +63,8 @@ export default class SidebarLayer extends Component {
     this.layer!.show()
 
     // init iframe
-    if (this.refreshOnShow) {
-      this.refreshOnShow = false
+    if (this.refreshWhenShow) {
+      this.refreshWhenShow = false
       this.$iframeWrap.innerHTML = ''
       this.$iframe = this.createIframe(conf.view)
       this.$iframeWrap.append(this.$iframe)
@@ -57,9 +75,7 @@ export default class SidebarLayer extends Component {
       if (this.getDarkMode() !== iFrameSrc.includes('&darkMode=1')) {
         this.iframeLoad(
           $iframe,
-          this.getDarkMode()
-            ? iFrameSrc.concat('&darkMode=1')
-            : iFrameSrc.replace('&darkMode=1', ''),
+          iFrameSrc.replace(/&darkMode=\d/, `&darkMode=${Number(this.getDarkMode())}`),
         )
       }
     }
@@ -74,11 +90,7 @@ export default class SidebarLayer extends Component {
       this.animTimer = undefined
       this.$el.style.transform = 'translate(0, 0)'
 
-      setTimeout(() => {
-        this.ctx.getData().updateNotifies([])
-      }, 0)
-
-      this.ctx.trigger('sidebar-show')
+      this.opts.onShow?.()
     }, 100)
   }
 
@@ -91,15 +103,15 @@ export default class SidebarLayer extends Component {
 
   private async authCheck(opts: { onSuccess: () => void }) {
     const data = (
-      await this.ctx.getApi().user.getUserStatus({
-        ...this.ctx.getApi().getUserFields(),
+      await this.opts.getApi().user.getUserStatus({
+        ...this.opts.getApi().getUserFields(),
       })
     ).data
     if (data.is_admin && !data.is_login) {
-      this.refreshOnShow = true
+      this.refreshWhenShow = true
 
       // show checker layer
-      this.ctx.checkAdmin({
+      this.opts.getCheckers().checkAdmin({
         onSuccess: () => {
           setTimeout(() => {
             opts.onSuccess()
@@ -118,11 +130,8 @@ export default class SidebarLayer extends Component {
   private initLayer() {
     if (this.layer) return
 
-    this.layer = this.ctx.get('layerManager').create('sidebar', this.$el)
+    this.layer = this.opts.getLayers().create('sidebar', this.$el)
     this.layer.setOnAfterHide(() => {
-      // 防止评论框被吞
-      this.ctx.editorResetState()
-
       // interrupt animation
       this.animTimer && clearTimeout(this.animTimer)
 
@@ -130,7 +139,7 @@ export default class SidebarLayer extends Component {
       this.$el.style.transform = ''
 
       // trigger event
-      this.ctx.trigger('sidebar-hide')
+      this.opts.onHide?.()
     })
   }
 
@@ -143,30 +152,39 @@ export default class SidebarLayer extends Component {
     const baseURL = import.meta.env.DEV
       ? 'http://localhost:23367/'
       : Utils.getURLBasedOnApi({
-          base: this.ctx.conf.server,
+          base: this.opts.getConf().get().server,
           path: '/sidebar/',
         })
 
+    const { name, email, link, is_admin, token } = this.opts.getUser().getData()
     const query: any = {
-      pageKey: this.conf.pageKey,
-      site: this.conf.site || '',
-      user: JSON.stringify(this.ctx.get('user').getData()),
+      pageKey: this.opts.getConf().get().pageKey,
+      site: this.opts.getConf().get().site || '',
+      // Keep profile fields for older sidebars, but never put credentials here.
+      user: JSON.stringify({ name, email, link, is_admin }),
       time: +new Date(),
     }
 
     if (view) query.view = view
-    if (this.getDarkMode()) query.darkMode = '1'
+    query.darkMode = this.getDarkMode() ? '1' : '0'
 
     const urlParams = new URLSearchParams(query)
-    this.iframeLoad($iframe, `${baseURL}?${urlParams.toString()}`)
+    // Fragments are not sent to the server or in Referer headers. The sidebar
+    // consumes and removes this before starting its router, then persists it.
+    const credentials = new URLSearchParams()
+    if (token) credentials.set('token', token)
+    const guest = this.opts.getUser().getGuestToken?.(this.opts.getConf().get().server)
+    if (guest) credentials.set('guest_token', guest)
+    const fragment = credentials.size ? `#${credentials.toString()}` : ''
+    this.iframeLoad($iframe, `${baseURL}?${urlParams.toString()}${fragment}`)
 
     return $iframe
   }
 
   private getDarkMode() {
-    return this.conf.darkMode === 'auto'
+    return this.opts.getConf().get().darkMode === 'auto'
       ? window.matchMedia('(prefers-color-scheme: dark)').matches
-      : this.conf.darkMode
+      : this.opts.getConf().get().darkMode
   }
 
   private iframeLoad($iframe: HTMLIFrameElement, src: string) {

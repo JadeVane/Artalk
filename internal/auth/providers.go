@@ -5,8 +5,8 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/ArtalkJS/Artalk/internal/config"
-	"github.com/ArtalkJS/Artalk/internal/log"
+	"github.com/artalkjs/artalk/v2/internal/config"
+	"github.com/artalkjs/artalk/v2/internal/log"
 	"github.com/markbates/goth"
 	"github.com/markbates/goth/providers/apple"
 	"github.com/markbates/goth/providers/auth0"
@@ -18,6 +18,7 @@ import (
 	"github.com/markbates/goth/providers/google"
 	"github.com/markbates/goth/providers/line"
 	"github.com/markbates/goth/providers/mastodon"
+	"github.com/markbates/goth/providers/microsoftonline"
 	"github.com/markbates/goth/providers/patreon"
 	"github.com/markbates/goth/providers/slack"
 	"github.com/markbates/goth/providers/steam"
@@ -27,11 +28,19 @@ import (
 	"github.com/samber/lo"
 )
 
+// CallbackOrigin is shared by provider registration and the popup handshake.
+func CallbackOrigin(conf *config.Config) string {
+	u, err := url.Parse(conf.Auth.Callback)
+	if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Host == "" {
+		return ""
+	}
+	return u.Scheme + "://" + u.Host
+}
+
 func GetProviders(conf *config.Config) []goth.Provider {
 	providers := []goth.Provider{}
 
-	u, _ := url.Parse(conf.Auth.Callback)
-	origin := u.Scheme + "://" + u.Host
+	origin := CallbackOrigin(conf)
 
 	callbackURL := func(provider string) string {
 		log.Debug("[SocialLogin] Callback URL: ", fmt.Sprintf("%s/api/v2/auth/%s/callback", origin, provider))
@@ -45,11 +54,18 @@ func GetProviders(conf *config.Config) []goth.Provider {
 	}
 	// @see https://docs.gitlab.com/ee/integration/oauth_provider.html
 	if gitlabConf := conf.Auth.Gitlab; gitlabConf.Enabled {
-		providers = append(providers, gitlab.New(gitlabConf.ClientID, gitlabConf.ClientSecret, callbackURL("gitlab")))
+		providers = append(providers, gitlab.New(gitlabConf.ClientID, gitlabConf.ClientSecret, callbackURL("gitlab"),
+			"read_user", "email"))
 	}
 	// @see https://docs.gitea.io/en-us/oauth2-provider/
 	if giteaConf := conf.Auth.Gitea; giteaConf.Enabled {
-		providers = append(providers, gitea.New(giteaConf.ClientID, giteaConf.ClientSecret, callbackURL("gitea")))
+		siteURL, err := giteaSiteURL(giteaConf.SiteURL)
+		if err != nil {
+			log.Error("[SocialLogin] ", err)
+		} else {
+			providers = append(providers, gitea.NewCustomisedURL(giteaConf.ClientID, giteaConf.ClientSecret, callbackURL("gitea"),
+				siteURL+"/login/oauth/authorize", siteURL+"/login/oauth/access_token", siteURL+"/api/v1/user", "read:user"))
+		}
 	}
 	// @see https://developers.google.com/identity/protocols/oauth2
 	if googleConf := conf.Auth.Google; googleConf.Enabled {
@@ -81,6 +97,11 @@ func GetProviders(conf *config.Config) []goth.Provider {
 		providers = append(providers, apple.New(appleConf.ClientID, appleConf.ClientSecret, callbackURL("apple"), nil,
 			apple.ScopeEmail, apple.ScopeName))
 	}
+	// @see https://docs.microsoft.com/en-us/azure/active-directory/develop/v2-oauth2-auth-code-flow
+	if microsoftConf := conf.Auth.Microsoft; microsoftConf.Enabled {
+		providers = append(providers, microsoftonline.New(microsoftConf.ClientID, microsoftConf.ClientSecret, callbackURL("microsoftonline"),
+			"openid", "offline_access", "profile", "user.read", "email"))
+	}
 	// @see https://developers.weixin.qq.com/doc/oplatform/Website_App/WeChat_Login/Wechat_Login.html
 	if wechatConf := conf.Auth.Wechat; wechatConf.Enabled {
 		providers = append(providers, wechat.New(wechatConf.ClientID, wechatConf.ClientSecret, callbackURL("wechat"),
@@ -102,12 +123,21 @@ func GetProviders(conf *config.Config) []goth.Provider {
 	// @see https://www.patreon.com/portal/registration
 	if patreonConf := conf.Auth.Patreon; patreonConf.Enabled {
 		providers = append(providers, patreon.New(patreonConf.ClientID, patreonConf.ClientSecret, callbackURL("patreon"),
-			patreon.ScopeIdentityEmail))
+			patreon.ScopeIdentity, patreon.ScopeIdentityEmail))
 	}
 	// @see https://auth0.com/docs/api/authentication
 	if auth0Conf := conf.Auth.Auth0; auth0Conf.Enabled {
 		providers = append(providers, auth0.New(auth0Conf.ClientID, auth0Conf.ClientSecret, callbackURL("auth0"),
-			auth0Conf.Domain))
+			auth0Conf.Domain, "openid", "profile", "email"))
+	}
+	// @see https://developer.okta.com/docs/api/
+	if oktaConf := conf.Auth.Okta; oktaConf.Enabled {
+		provider, err := newOktaProvider(oktaConf.Issuer, oktaConf.ClientID, oktaConf.ClientSecret, callbackURL("okta"))
+		if err != nil {
+			log.Error("[SocialLogin] ", err)
+		} else {
+			providers = append(providers, provider)
+		}
 	}
 
 	return providers
